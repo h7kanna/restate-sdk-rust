@@ -2,8 +2,16 @@ use futures::{pin_mut, Stream};
 use futures_util::StreamExt;
 use restate_sdk_types::{protocol::Message::CallEntryMessage, Message};
 
-pub trait Connection {
+pub trait MessageStreamer {
+    async fn stream_to_consumer(&self, consumer: impl RestateStreamConsumer);
+}
+
+pub trait Connection: MessageStreamer {
     fn send(&mut self, message: Message);
+}
+
+pub trait RestateStreamConsumer {
+    async fn handle(&mut self, message: Message) -> bool;
 }
 
 pub struct Http2Connection {}
@@ -14,8 +22,10 @@ impl Http2Connection {
 
         while let Some(message) = messages.next().await {}
     }
+}
 
-    pub async fn stream_to_consumer(&self, mut consumer: impl RestateStreamConsumer) {
+impl MessageStreamer for Http2Connection {
+    async fn stream_to_consumer(&self, mut consumer: impl RestateStreamConsumer) {
         consumer
             .handle(Message {
                 message_type: 0,
@@ -39,10 +49,6 @@ impl Connection for Http2Connection {
     fn send(&mut self, message: Message) {
         todo!()
     }
-}
-
-pub trait RestateStreamConsumer {
-    async fn handle(&mut self, message: Message) -> bool;
 }
 
 

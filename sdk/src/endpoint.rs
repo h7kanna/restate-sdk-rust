@@ -1,8 +1,10 @@
+use crate::connection::RestateStreamConsumer;
+
 pub struct RestateEndpoint {}
 
 mod http2_handler {
     use crate::{
-        connection::{Connection, Http2Connection},
+        connection::{Connection, Http2Connection, MessageStreamer},
         invocation::InvocationBuilder,
         machine::StateMachine,
     };
@@ -11,6 +13,10 @@ mod http2_handler {
     use tokio_util::sync::CancellationToken;
 
     pub async fn handle(connection: Http2Connection) {
+        handle_connection(connection).await
+    }
+
+    pub async fn handle_connection(connection: impl Connection) {
         // step 1: collect all journal entries
         let mut builder = InvocationBuilder::new();
         connection.stream_to_consumer(&mut builder).await;
@@ -56,29 +62,82 @@ mod http2_handler {
     mod tests {
         use super::*;
         use crate::{
-            connection::{Connection, Http2Connection},
+            connection::{Connection, RestateStreamConsumer},
             context::RestateContext,
+        };
+        use restate_sdk_types::{
+            protocol::{
+                Message::{CallEntryMessage, InputEntryMessage, StartMessage},
+                INPUT_ENTRY_MESSAGE_TYPE, START_MESSAGE_TYPE,
+            },
+            Message,
         };
         use std::time::Duration;
         use tokio::sync::mpsc::channel;
         use tokio_util::sync::CancellationToken;
         use tracing_test::traced_test;
 
+        struct TestDriver {
+            input_messages: Vec<Message>,
+            output_messages: Vec<Message>,
+        }
+
+        impl MessageStreamer for TestDriver {
+            async fn stream_to_consumer(&self, mut consumer: impl RestateStreamConsumer) {
+                for message in &self.input_messages {
+                    consumer.handle(message.clone()).await;
+                }
+            }
+        }
+
+        impl Connection for TestDriver {
+            fn send(&mut self, message: Message) {
+                self.output_messages.push(message)
+            }
+        }
+
         #[traced_test]
         #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-        async fn test_handle() {
+        async fn test_handle_connection() {
             let token = CancellationToken::new();
             let token2 = token.clone();
             let input = "hello".to_string();
 
-            let connection = Http2Connection {};
+            let connection = TestDriver {
+                input_messages: vec![
+                    Message {
+                        message_type: START_MESSAGE_TYPE,
+                        message: StartMessage(1, restate_sdk_protos::StartMessage {
+                            id: Default::default(),
+                            debug_id: "".to_string(),
+                            known_entries: 1,
+                            state_map: vec![],
+                            partial_state: false,
+                            key: "".to_string(),
+                        }),
+                        completed: false,
+                        requires_ack: None,
+                    },
+                    Message {
+                        message_type: INPUT_ENTRY_MESSAGE_TYPE,
+                        message: InputEntryMessage(1, restate_sdk_protos::InputEntryMessage {
+                            headers: vec![],
+                            value: Default::default(),
+                            name: "".to_string(),
+                        }),
+                        completed: false,
+                        requires_ack: None,
+                    },
+                ],
+                output_messages: vec![],
+            };
 
             let handle = tokio::spawn(async move {
                 tokio::select! {
                     _ = token2.cancelled() => {
 
                     }
-                    _ = handle(connection) => {
+                    _ = handle_connection(connection) => {
 
                     }
                 }

@@ -4,14 +4,16 @@ use crate::{
 };
 use bytes::Bytes;
 use parking_lot::Mutex;
+use restate_sdk_protos::output_entry_message;
 use restate_sdk_types::{
     protocol,
     protocol::{
-        Message::{CompletionMessage, EntryAckMessage},
-        COMPLETION_MESSAGE_TYPE, ENTRY_ACK_MESSAGE_TYPE,
+        Message::{CompletionMessage, EndMessage, EntryAckMessage, OutputEntryMessage},
+        COMPLETION_MESSAGE_TYPE, END_MESSAGE_TYPE, ENTRY_ACK_MESSAGE_TYPE, OUTPUT_ENTRY_MESSAGE_TYPE,
     },
     Message,
 };
+use serde::{Deserialize, Serialize};
 use std::{future::Future, sync::Arc, task::Waker};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
@@ -41,8 +43,26 @@ impl StateMachine {
     }
 
     pub async fn invoke(state_machine: Arc<Mutex<StateMachine>>) {
-        let ctx = RestateContext::new(state_machine);
-        service_fn(ctx, "hello".to_string()).await
+        let ctx = RestateContext::new(state_machine.clone());
+        let result = service_fn(ctx, "hello".to_string()).await;
+        let result = serde_json::to_string(&result).unwrap();
+        let output = Message {
+            message_type: OUTPUT_ENTRY_MESSAGE_TYPE,
+            message: OutputEntryMessage(
+                OUTPUT_ENTRY_MESSAGE_TYPE,
+                restate_sdk_protos::OutputEntryMessage {
+                    name: "".to_string(),
+                    result: Some(output_entry_message::Result::Value(result.into())),
+                },
+            ),
+            completed: false,
+            requires_ack: None,
+        };
+        println!("{:?} end", output);
+        state_machine
+            .lock()
+            .send(EndMessage(END_MESSAGE_TYPE, restate_sdk_protos::EndMessage {}));
+        //state_machine.lock().handle_user_code_message(output.message_type, output.message);
     }
 
     pub fn handle_runtime_message(&mut self, message: Message) -> Bytes {
@@ -100,8 +120,15 @@ impl RestateStreamConsumer for &mut StateMachine {
     }
 }
 
-async fn service_fn(ctx: RestateContext, name: String) {
-    ctx.invoke_service::<String, String>("".to_string(), name).await;
+#[derive(Serialize, Deserialize)]
+pub struct ExecOutput {
+    test: String,
+}
+
+
+async fn service_fn(ctx: RestateContext, name: String) -> ExecOutput {
+    ctx.invoke_service::<String, ExecOutput>("".to_string(), name)
+        .await
 }
 
 #[cfg(test)]
