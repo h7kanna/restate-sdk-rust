@@ -1,0 +1,16 @@
+[package]
+name = "restate-sdk-test-utils"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = { workspace = true }
+
+[features]
+default = []
+
+[dependencies]
+anyhow = "1.0"
+restate-sdk-protos = { version = "0.1.0", path = "../proto" }
+restate-sdk-types = { version = "0.1.0", path = "../types" }
+serde = { version = "1.0.202", features = ["derive"] }
+serde_json = { version = "1.0.117" }

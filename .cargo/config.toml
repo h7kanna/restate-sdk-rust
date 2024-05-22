@@ -1,0 +1,11 @@
+[build]
+rustflags = []
+
+[alias]
+format = "fmt --all --verbose"
+xtask = "run --package xtask --"
+lint = "clippy --workspace --all-targets --verbose -- --deny warnings -W clippy::cargo -W clippy::dbg_macro -A clippy::cargo_common_metadata -A clippy::multiple_crate_versions"
+
+[profile.release]
+strip = true
+lto = true

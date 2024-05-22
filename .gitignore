@@ -1,0 +1,24 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin
+testbin/*
+
+# editor and IDE paraphernalia
+.idea
+*.swp
+*.swo
+*~
+
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock
+
+# Coverage tools
+lcov.info
+tarpaulin-report.html
+*.profraw
