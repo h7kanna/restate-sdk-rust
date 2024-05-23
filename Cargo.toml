@@ -1,5 +1,5 @@
 [workspace]
-members = ["client", "core", "derive", "discovery", "examples", "proto", "sdk", "test-utils", "types"]
+members = ["client", "core", "derive", "discovery", "examples", "sdk", "service-protocol", "test-utils", "types"]
 resolver = "2"
 
 [workspace.package]

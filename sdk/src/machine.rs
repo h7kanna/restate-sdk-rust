@@ -8,7 +8,7 @@ use crate::{
 };
 use bytes::Bytes;
 use parking_lot::Mutex;
-use restate_sdk_protos::output_entry_message;
+use restate_sdk_service_protocol::output_entry_message;
 use restate_sdk_types::{
     protocol,
     protocol::{
@@ -59,7 +59,7 @@ impl StateMachine {
             message_type: OUTPUT_ENTRY_MESSAGE_TYPE,
             message: OutputEntryMessage(
                 OUTPUT_ENTRY_MESSAGE_TYPE,
-                restate_sdk_protos::OutputEntryMessage {
+                restate_sdk_service_protocol::OutputEntryMessage {
                     name: "".to_string(),
                     result: Some(output_entry_message::Result::Value(result.into())),
                 },
@@ -70,7 +70,7 @@ impl StateMachine {
         println!("{:?} end", output);
         state_machine.lock().send(Message {
             message_type: END_MESSAGE_TYPE,
-            message: EndMessage(END_MESSAGE_TYPE, restate_sdk_protos::EndMessage {}),
+            message: EndMessage(END_MESSAGE_TYPE, restate_sdk_service_protocol::EndMessage {}),
             completed: false,
             requires_ack: None,
         });

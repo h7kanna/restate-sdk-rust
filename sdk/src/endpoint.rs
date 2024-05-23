@@ -65,11 +65,11 @@ mod http2_handler {
             connection::{Connection, RestateStreamConsumer},
             context::RestateContext,
         };
-        use restate_sdk_protos::call_entry_message;
+        use restate_sdk_service_protocol::call_entry_message;
         use restate_sdk_types::{
             protocol::{
                 Message::{CallEntryMessage, InputEntryMessage, StartMessage},
-                CALL_ENTRY_MESSAGE_TYPE, INPUT_ENTRY_MESSAGE_TYPE, START_MESSAGE_TYPE,
+                INPUT_ENTRY_MESSAGE_TYPE, INVOKE_ENTRY_MESSAGE_TYPE, START_MESSAGE_TYPE,
             },
             Message,
         };
@@ -109,14 +109,17 @@ mod http2_handler {
                 input_messages: vec![
                     Message {
                         message_type: START_MESSAGE_TYPE,
-                        message: StartMessage(START_MESSAGE_TYPE, restate_sdk_protos::StartMessage {
-                            id: Default::default(),
-                            debug_id: "".to_string(),
-                            known_entries: 2,
-                            state_map: vec![],
-                            partial_state: false,
-                            key: "".to_string(),
-                        }),
+                        message: StartMessage(
+                            START_MESSAGE_TYPE,
+                            restate_sdk_service_protocol::StartMessage {
+                                id: Default::default(),
+                                debug_id: "".to_string(),
+                                known_entries: 2,
+                                state_map: vec![],
+                                partial_state: false,
+                                key: "".to_string(),
+                            },
+                        ),
                         completed: false,
                         requires_ack: None,
                     },
@@ -124,7 +127,7 @@ mod http2_handler {
                         message_type: INPUT_ENTRY_MESSAGE_TYPE,
                         message: InputEntryMessage(
                             INPUT_ENTRY_MESSAGE_TYPE,
-                            restate_sdk_protos::InputEntryMessage {
+                            restate_sdk_service_protocol::InputEntryMessage {
                                 headers: vec![],
                                 value: Default::default(),
                                 name: "".to_string(),
@@ -134,10 +137,10 @@ mod http2_handler {
                         requires_ack: None,
                     },
                     Message {
-                        message_type: CALL_ENTRY_MESSAGE_TYPE,
+                        message_type: INVOKE_ENTRY_MESSAGE_TYPE,
                         message: CallEntryMessage(
-                            CALL_ENTRY_MESSAGE_TYPE,
-                            restate_sdk_protos::CallEntryMessage {
+                            INVOKE_ENTRY_MESSAGE_TYPE,
+                            restate_sdk_service_protocol::CallEntryMessage {
                                 service_name: "".to_string(),
                                 handler_name: "".to_string(),
                                 parameter: Default::default(),

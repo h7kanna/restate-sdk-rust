@@ -1,0 +1,17 @@
+{
+  "protocolMode": "BIDI_STREAM",
+  "minProtocolVersion": 1,
+  "maxProtocolVersion": 1,
+  "services": [
+    {
+      "name": "service",
+      "ty": "SERVICE",
+      "handlers": [
+        {
+          "name": "greet",
+          "ty": "EXCLUSIVE"
+        }
+      ]
+    }
+  ]
+}

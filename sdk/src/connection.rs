@@ -31,7 +31,7 @@ impl MessageStreamer for Http2Connection {
         consumer
             .handle(Message {
                 message_type: 0,
-                message: CallEntryMessage(1, restate_sdk_protos::CallEntryMessage {
+                message: CallEntryMessage(1, restate_sdk_service_protocol::CallEntryMessage {
                     service_name: "".to_string(),
                     handler_name: "".to_string(),
                     parameter: Default::default(),

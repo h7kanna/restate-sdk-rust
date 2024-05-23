@@ -1,4 +1,4 @@
-use restate_sdk_protos::*;
+use restate_sdk_service_protocol::*;
 
 // pub the protocol message types as defined by the restate protocol.
 pub const START_MESSAGE_TYPE: u16 = 0x0000;
@@ -15,14 +15,14 @@ pub const CLEAR_STATE_ENTRY_MESSAGE_TYPE: u16 = 0x0802;
 pub const CLEAR_ALL_STATE_ENTRY_MESSAGE_TYPE: u16 = 0x0803;
 pub const GET_STATE_KEYS_ENTRY_MESSAGE_TYPE: u16 = 0x0804;
 pub const SLEEP_ENTRY_MESSAGE_TYPE: u16 = 0x0c00;
-pub const CALL_ENTRY_MESSAGE_TYPE: u16 = 0x0c01;
+pub const INVOKE_ENTRY_MESSAGE_TYPE: u16 = 0x0c01;
 pub const BACKGROUND_INVOKE_ENTRY_MESSAGE_TYPE: u16 = 0x0c02;
 pub const AWAKEABLE_ENTRY_MESSAGE_TYPE: u16 = 0x0c03;
 pub const COMPLETE_AWAKEABLE_ENTRY_MESSAGE_TYPE: u16 = 0x0c04;
+pub const SIDE_EFFECT_ENTRY_MESSAGE_TYPE: u16 = 0x0C05;
 
 pub const AWAKEABLE_IDENTIFIER_PREFIX: &str = "prom_1";
 
-pub const SIDE_EFFECT_ENTRY_MESSAGE_TYPE: u16 = 0x0c00 + 5;
 
 #[derive(Debug, Clone)]
 pub enum Message {

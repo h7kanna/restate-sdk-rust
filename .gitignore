@@ -22,3 +22,6 @@ Cargo.lock
 lcov.info
 tarpaulin-report.html
 *.profraw
+
+# Restate
+/restate-data
