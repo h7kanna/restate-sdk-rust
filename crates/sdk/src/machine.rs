@@ -8,13 +8,13 @@ use crate::{
 };
 use bytes::Bytes;
 use parking_lot::Mutex;
-use restate_sdk_types::service_protocol::output_entry_message;
 use restate_sdk_types::{
     protocol,
     protocol::{
         Message::{CompletionMessage, EndMessage, EntryAckMessage, OutputEntryMessage},
         COMPLETION_MESSAGE_TYPE, END_MESSAGE_TYPE, ENTRY_ACK_MESSAGE_TYPE, OUTPUT_ENTRY_MESSAGE_TYPE,
     },
+    service_protocol::output_entry_message,
     Message,
 };
 use serde::{Deserialize, Serialize};
@@ -70,7 +70,10 @@ impl StateMachine {
         println!("{:?} end", output);
         state_machine.lock().send(Message {
             message_type: END_MESSAGE_TYPE,
-            message: EndMessage(END_MESSAGE_TYPE, restate_sdk_types::service_protocol::EndMessage {}),
+            message: EndMessage(
+                END_MESSAGE_TYPE,
+                restate_sdk_types::service_protocol::EndMessage {},
+            ),
             completed: false,
             requires_ack: None,
         });

@@ -1,8 +1,10 @@
 use crate::machine::StateMachine;
 use bytes::Bytes;
 use parking_lot::Mutex;
-use restate_sdk_types::service_protocol::CallEntryMessage;
-use restate_sdk_types::protocol::{Message, INVOKE_ENTRY_MESSAGE_TYPE};
+use restate_sdk_types::{
+    protocol::{Message, INVOKE_ENTRY_MESSAGE_TYPE},
+    service_protocol::CallEntryMessage,
+};
 use std::{
     future::Future,
     marker::PhantomData,

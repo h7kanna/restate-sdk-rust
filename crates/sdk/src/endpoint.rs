@@ -65,12 +65,12 @@ mod http2_handler {
             connection::{Connection, RestateStreamConsumer},
             context::RestateContext,
         };
-        use restate_sdk_types::service_protocol::call_entry_message;
         use restate_sdk_types::{
             protocol::{
                 Message::{CallEntryMessage, InputEntryMessage, StartMessage},
                 INPUT_ENTRY_MESSAGE_TYPE, INVOKE_ENTRY_MESSAGE_TYPE, START_MESSAGE_TYPE,
             },
+            service_protocol::call_entry_message,
             Message,
         };
         use std::time::Duration;
