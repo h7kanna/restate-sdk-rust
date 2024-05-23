@@ -19,11 +19,18 @@ impl RestateContext {
         RestateContext { state_machine }
     }
 
-    pub fn invoke_service<F, R>(&self, func: F, name: String) -> impl Future<Output = R> + '_
+    pub fn invoke_service<F, I, R>(&self, func: F, input: I) -> impl Future<Output = R> + '_
     where
+        I: Serialize,
         for<'a> R: Deserialize<'a>,
     {
-        self.invoke("".to_string(), name, "".to_string(), "".to_string(), None)
+        self.invoke(
+            "test".to_string(),
+            "test".to_string(),
+            "greet".to_string(),
+            input,
+            None,
+        )
     }
 
     pub fn invoke<F, I, R>(

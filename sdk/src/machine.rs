@@ -44,7 +44,10 @@ impl StateMachine {
 
     pub async fn invoke(state_machine: Arc<Mutex<StateMachine>>) {
         let ctx = RestateContext::new(state_machine.clone());
-        let result = service_fn(ctx, "hello".to_string()).await;
+        let result = service_fn(ctx, ExecInput {
+            test: "hello".to_string(),
+        })
+        .await;
         let result = serde_json::to_string(&result).unwrap();
         let output = Message {
             message_type: OUTPUT_ENTRY_MESSAGE_TYPE,
@@ -59,9 +62,12 @@ impl StateMachine {
             requires_ack: None,
         };
         println!("{:?} end", output);
-        state_machine
-            .lock()
-            .send(EndMessage(END_MESSAGE_TYPE, restate_sdk_protos::EndMessage {}));
+        state_machine.lock().send(Message {
+            message_type: END_MESSAGE_TYPE,
+            message: EndMessage(END_MESSAGE_TYPE, restate_sdk_protos::EndMessage {}),
+            completed: false,
+            requires_ack: None,
+        });
         //state_machine.lock().handle_user_code_message(output.message_type, output.message);
     }
 
@@ -81,7 +87,7 @@ impl StateMachine {
             .journal
             .handle_user_code_message(entry_index, message.clone(), waker);
         if result.is_none() {
-            self.send(message);
+            //self.send(message);
             None
         } else {
             result
@@ -92,7 +98,7 @@ impl StateMachine {
         return self.journal.get_next_user_code_journal_index();
     }
 
-    fn send(&self, message: protocol::Message) {}
+    fn send(&self, message: Message) {}
 
     fn hit_suspension(&self) {
         self.suspension_tx.send("suspend".to_string()).unwrap()
@@ -120,14 +126,19 @@ impl RestateStreamConsumer for &mut StateMachine {
     }
 }
 
+
+#[derive(Serialize, Deserialize)]
+pub struct ExecInput {
+    test: String,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct ExecOutput {
     test: String,
 }
 
-
-async fn service_fn(ctx: RestateContext, name: String) -> ExecOutput {
-    ctx.invoke_service::<String, ExecOutput>("".to_string(), name)
+async fn service_fn(ctx: RestateContext, name: ExecInput) -> ExecOutput {
+    ctx.invoke_service::<String, ExecInput, ExecOutput>("".to_string(), name)
         .await
 }
 
