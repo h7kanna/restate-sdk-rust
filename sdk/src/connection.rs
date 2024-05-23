@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use futures::{pin_mut, Stream};
 use futures_util::StreamExt;
 use restate_sdk_types::{protocol::Message::CallEntryMessage, Message};
@@ -6,7 +7,8 @@ pub trait MessageStreamer {
     async fn stream_to_consumer(&self, consumer: impl RestateStreamConsumer);
 }
 
-pub trait Connection: MessageStreamer {
+#[async_trait]
+pub trait Connection: Send {
     fn send(&mut self, message: Message);
 }
 

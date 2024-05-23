@@ -16,15 +16,15 @@ mod http2_handler {
         handle_connection(connection).await
     }
 
-    pub async fn handle_connection(connection: impl Connection) {
+    pub async fn handle_connection(connection: impl Connection + MessageStreamer + 'static) {
         // step 1: collect all journal entries
         let mut builder = InvocationBuilder::new();
         connection.stream_to_consumer(&mut builder).await;
         let invocation = builder.build();
 
         // step 2: create the state machine
-        let (mut state_machine, mut suspension_rx) = StateMachine::new(invocation);
-        connection.stream_to_consumer(&mut state_machine).await;
+        let (mut state_machine, mut suspension_rx) = StateMachine::new(Box::new(connection), invocation);
+        //connection.stream_to_consumer(&mut state_machine).await;
 
         let state_machine = Arc::new(Mutex::new(state_machine));
         let message_consumer = state_machine.clone();
@@ -73,13 +73,13 @@ mod http2_handler {
             Message,
         };
         use std::time::Duration;
-        use tokio::sync::mpsc::channel;
+        use tokio::sync::mpsc::{channel, UnboundedSender};
         use tokio_util::sync::CancellationToken;
         use tracing_test::traced_test;
 
         struct TestDriver {
             input_messages: Vec<Message>,
-            output_messages: Vec<Message>,
+            output_messages: UnboundedSender<Message>,
         }
 
         impl MessageStreamer for TestDriver {
@@ -92,7 +92,7 @@ mod http2_handler {
 
         impl Connection for TestDriver {
             fn send(&mut self, message: Message) {
-                self.output_messages.push(message)
+                self.output_messages.send(message).unwrap();
             }
         }
 
@@ -103,6 +103,7 @@ mod http2_handler {
             let token2 = token.clone();
             let input = "hello".to_string();
 
+            let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel();
             let connection = TestDriver {
                 input_messages: vec![
                     Message {
@@ -129,7 +130,7 @@ mod http2_handler {
                         requires_ack: None,
                     },
                 ],
-                output_messages: vec![],
+                output_messages: output_tx,
             };
 
             let handle = tokio::spawn(async move {
@@ -143,7 +144,18 @@ mod http2_handler {
                 }
             });
 
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            loop {
+                tokio::select! {
+                    _ = tokio::time::sleep(Duration::from_secs(2)) => {
+                        break;
+                    }
+                    message = output_rx.recv() => {
+                        if let Some(message) = message {
+                            println!("{:?}", message);
+                        }
+                    }
+                }
+            }
 
             token.cancel();
 

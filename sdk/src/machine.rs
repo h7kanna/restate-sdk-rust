@@ -1,6 +1,10 @@
 use crate::{
-    connection::RestateStreamConsumer, context::RestateContext, invocation::Invocation, journal::Journal,
-    logger::Logger, store::LocalStore,
+    connection::{Connection, RestateStreamConsumer},
+    context::RestateContext,
+    invocation::Invocation,
+    journal::Journal,
+    logger::Logger,
+    store::LocalStore,
 };
 use bytes::Bytes;
 use parking_lot::Mutex;
@@ -24,10 +28,11 @@ pub(crate) struct StateMachine {
     local_state_store: LocalStore,
     logger: Logger,
     suspension_tx: UnboundedSender<String>,
+    connection: Box<dyn Connection>,
 }
 
 impl StateMachine {
-    pub fn new(invocation: Invocation) -> (Self, UnboundedReceiver<String>) {
+    pub fn new(connection: Box<dyn Connection>, invocation: Invocation) -> (Self, UnboundedReceiver<String>) {
         let (suspension_tx, suspension_rx) = unbounded_channel();
         (
             Self {
@@ -37,6 +42,7 @@ impl StateMachine {
                 local_state_store: LocalStore::new(),
                 logger: Logger::new(),
                 suspension_tx,
+                connection,
             },
             suspension_rx,
         )
@@ -98,7 +104,9 @@ impl StateMachine {
         return self.journal.get_next_user_code_journal_index();
     }
 
-    fn send(&self, message: Message) {}
+    fn send(&mut self, message: Message) {
+        self.connection.send(message);
+    }
 
     fn hit_suspension(&self) {
         self.suspension_tx.send("suspend".to_string()).unwrap()
