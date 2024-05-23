@@ -1,4 +1,4 @@
-use restate_sdk_service_protocol::*;
+use crate::service_protocol::*;
 
 // pub the protocol message types as defined by the restate protocol.
 pub const START_MESSAGE_TYPE: u16 = 0x0000;

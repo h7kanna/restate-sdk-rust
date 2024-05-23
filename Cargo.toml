@@ -3,9 +3,7 @@ members = [
     "crates/client",
     "crates/core",
     "crates/derive",
-    "crates/discovery",
     "crates/sdk",
-    "crates/service-protocol",
     "crates/test-utils",
     "crates/types",
     "examples"

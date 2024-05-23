@@ -10,6 +10,18 @@ default = []
 
 [dependencies]
 anyhow = "1.0"
-restate-sdk-service-protocol = { version = "0.1.0", path = "../service-protocol" }
+prost = "0.12.6"
+prost-types = "0.12.6"
+regress = "0.9.1"
 serde = { version = "1.0.202", features = ["derive"] }
 serde_json = { version = "1.0.117" }
+strum = "0.26.2"
+strum_macros = "0.26.2"
+
+[build-dependencies]
+jsonptr = "0.4.7"
+prettyplease = { version = "0.2.20" }
+prost-build = "0.12.6"
+serde_json = { version = "1.0.117" }
+syn = { version = "2.0.65" }
+typify = { version = "0.1.0" }

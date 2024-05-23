@@ -1,7 +1,7 @@
 use crate::{connection::RestateStreamConsumer, store::LocalStore};
 use bytes::Bytes;
 use dashmap::DashMap;
-use restate_sdk_service_protocol::{InputEntryMessage, StartMessage};
+use restate_sdk_types::service_protocol::{InputEntryMessage, StartMessage};
 use restate_sdk_types::{protocol, Message};
 use std::cmp::PartialEq;
 

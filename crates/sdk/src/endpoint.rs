@@ -65,7 +65,7 @@ mod http2_handler {
             connection::{Connection, RestateStreamConsumer},
             context::RestateContext,
         };
-        use restate_sdk_service_protocol::call_entry_message;
+        use restate_sdk_types::service_protocol::call_entry_message;
         use restate_sdk_types::{
             protocol::{
                 Message::{CallEntryMessage, InputEntryMessage, StartMessage},
@@ -111,7 +111,7 @@ mod http2_handler {
                         message_type: START_MESSAGE_TYPE,
                         message: StartMessage(
                             START_MESSAGE_TYPE,
-                            restate_sdk_service_protocol::StartMessage {
+                            restate_sdk_types::service_protocol::StartMessage {
                                 id: Default::default(),
                                 debug_id: "".to_string(),
                                 known_entries: 2,
@@ -127,7 +127,7 @@ mod http2_handler {
                         message_type: INPUT_ENTRY_MESSAGE_TYPE,
                         message: InputEntryMessage(
                             INPUT_ENTRY_MESSAGE_TYPE,
-                            restate_sdk_service_protocol::InputEntryMessage {
+                            restate_sdk_types::service_protocol::InputEntryMessage {
                                 headers: vec![],
                                 value: Default::default(),
                                 name: "".to_string(),
@@ -140,7 +140,7 @@ mod http2_handler {
                         message_type: INVOKE_ENTRY_MESSAGE_TYPE,
                         message: CallEntryMessage(
                             INVOKE_ENTRY_MESSAGE_TYPE,
-                            restate_sdk_service_protocol::CallEntryMessage {
+                            restate_sdk_types::service_protocol::CallEntryMessage {
                                 service_name: "".to_string(),
                                 handler_name: "".to_string(),
                                 parameter: Default::default(),

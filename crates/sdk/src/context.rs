@@ -1,7 +1,7 @@
 use crate::{machine::StateMachine, syscall::CallService};
 use bytes::Bytes;
 use parking_lot::Mutex;
-use restate_sdk_service_protocol::CallEntryMessage;
+use restate_sdk_types::service_protocol::CallEntryMessage;
 use serde::{Deserialize, Serialize};
 use std::{future::Future, sync::Arc};
 

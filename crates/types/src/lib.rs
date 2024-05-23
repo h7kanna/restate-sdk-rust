@@ -1,4 +1,6 @@
 pub mod protocol;
+pub mod service_protocol;
+pub mod endpoint_manifest;
 
 #[derive(Clone, Debug)]
 pub struct Message {

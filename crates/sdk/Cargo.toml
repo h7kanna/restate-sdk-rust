@@ -32,7 +32,6 @@ pin-project-lite = "0.2.14"
 prost = "0.12"
 prost-types = "0.12"
 rand = "0.8.5"
-restate-sdk-service-protocol = { version = "0.1.0", path = "../service-protocol" }
 restate-sdk-types = { version = "0.1.0", path = "../types" }
 size = "0.4.1"
 serde = { version = "1", features = ["derive"] }

@@ -2,7 +2,7 @@ use crate::invocation::Invocation;
 use bytes::Bytes;
 use dashmap::DashMap;
 use futures_util::task::waker;
-use restate_sdk_service_protocol::{
+use restate_sdk_types::service_protocol::{
     call_entry_message, completion_message, CompletionMessage, EntryAckMessage, InputEntryMessage,
 };
 use restate_sdk_types::protocol::{self, Message, INPUT_ENTRY_MESSAGE_TYPE};

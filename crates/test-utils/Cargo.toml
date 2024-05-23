@@ -10,7 +10,6 @@ default = []
 
 [dependencies]
 anyhow = "1.0"
-restate-sdk-service-protocol = { version = "0.1.0", path = "../service-protocol" }
 restate-sdk-types = { version = "0.1.0", path = "../types" }
 serde = { version = "1.0.202", features = ["derive"] }
 serde_json = { version = "1.0.117" }
