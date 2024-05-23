@@ -13,7 +13,9 @@
 
 use bytes::Bytes;
 use prost::Message;
-use restate_sdk_types::journal::{raw::PlainRawEntry, Completion, CompletionResult, EntryIndex};
+use restate_sdk_types::journal::raw::PlainRawEntry;
+use restate_sdk_types::journal::CompletionResult;
+use restate_sdk_types::journal::{Completion, EntryIndex};
 
 mod encoding;
 mod header;
@@ -64,7 +66,7 @@ impl ProtocolMessage {
         Self::EntryAck(service_protocol::EntryAckMessage { entry_index })
     }
 
-    pub(crate) fn encoded_len(&self) -> usize {
+    pub fn encoded_len(&self) -> usize {
         match self {
             ProtocolMessage::Start(m) => m.encoded_len(),
             ProtocolMessage::Completion(m) => m.encoded_len(),

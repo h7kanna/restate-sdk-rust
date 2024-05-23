@@ -7,6 +7,8 @@ use hyper::{
     StatusCode,
 };
 use hyper_util::rt::{TokioExecutor, TokioIo};
+use restate_sdk_types::service_protocol::ServiceProtocolVersion;
+use restate_service_protocol::message::Decoder;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
@@ -73,7 +75,7 @@ async fn service(
         }
 
         // Convert to uppercase before sending back to the client using a stream.
-        (&Method::POST, "/services/Greeter/greet") => {
+        (&Method::POST, "/services/Greeter/greet2") => {
             let frame_stream = req.into_body().map_frame(|frame| {
                 let frame = if let Ok(data) = frame.into_data() {
                     data.iter()
@@ -84,6 +86,23 @@ async fn service(
                 };
 
                 Frame::data(frame)
+            });
+
+            Ok(Response::new(frame_stream.boxed()))
+        }
+
+        (&Method::POST, "/invoke/Greeter/greet") => {
+            let mut decoder = Decoder::new(ServiceProtocolVersion::V1, usize::MAX, None);
+            let frame_stream  = req.into_body().map_frame(move |frame| {
+                if let Ok(data) = frame.into_data() {
+                    decoder.push(data);
+                    if let Ok(Some((header, message))) = decoder.consume_next() {
+                        println!("Header: {:?}, Message: {:?}", header, message)
+                    } else {
+                        println!("decode error");
+                    }
+                };
+                Frame::data(Bytes::new())
             });
 
             Ok(Response::new(frame_stream.boxed()))

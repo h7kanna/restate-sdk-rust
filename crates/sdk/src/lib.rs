@@ -8,7 +8,6 @@ mod io;
 mod journal;
 mod logger;
 mod machine;
-mod message;
 mod store;
 mod syscall;
 

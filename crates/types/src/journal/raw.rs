@@ -13,6 +13,7 @@
 use super::*;
 
 use std::fmt::Debug;
+use crate::invocation::Header;
 
 /// This struct represents headers as they are received from the wire.
 pub type PlainEntryHeader = EntryHeader<(), ()>;
@@ -82,6 +83,20 @@ impl<InvokeEnrichmentResult, AwakeableEnrichmentResult>
             header: new_header,
             entry: self.entry,
         }
+    }
+
+    pub fn deserialize_entry<Codec: RawEntryCodec>(self) -> Result<Entry, RawEntryCodecError> {
+        Codec::deserialize(self.ty(), self.entry)
+    }
+
+    pub fn deserialize_entry_ref<Codec: RawEntryCodec>(&self) -> Result<Entry, RawEntryCodecError> {
+        Codec::deserialize(self.ty(), self.entry.clone())
+    }
+
+    pub fn deserialize_name<Codec: RawEntryCodec>(
+        &self,
+    ) -> Result<Option<String>, RawEntryCodecError> {
+        Codec::read_entry_name(self.ty(), self.entry.clone())
     }
 
     pub fn erase_enrichment(self) -> PlainRawEntry {
@@ -260,4 +275,25 @@ pub enum ErrorKind {
     },
     #[error("Field '{0}' is missing")]
     MissingField(&'static str),
+}
+
+pub trait RawEntryCodec {
+    fn serialize_as_input_entry(
+        headers: Vec<Header>,
+        input_message: Bytes,
+    ) -> PlainRawEntry;
+
+    fn serialize_get_state_keys_completion(keys: Vec<Bytes>) -> CompletionResult;
+
+    fn deserialize(entry_type: EntryType, entry_value: Bytes) -> Result<Entry, RawEntryCodecError>;
+
+    fn read_entry_name(
+        entry_type: EntryType,
+        entry_value: Bytes,
+    ) -> Result<Option<String>, RawEntryCodecError>;
+
+    fn write_completion<InvokeEnrichmentResult: Debug, AwakeableEnrichmentResult: Debug>(
+        entry: &mut RawEntry<InvokeEnrichmentResult, AwakeableEnrichmentResult>,
+        completion_result: CompletionResult,
+    ) -> Result<(), RawEntryCodecError>;
 }

@@ -24,5 +24,5 @@ restate-server
 ```shell
 restate dp add http://localhost:3000
 
-curl localhost:8080/Dynamic/dynamic -H 'content-type: application/json' -d '"Hi"'
+curl localhost:8080/Greeter/greet -H 'content-type: application/json' -d '"Hi"'
 ```

@@ -249,7 +249,7 @@ impl MessageHeader {
     }
 
     #[inline]
-    pub(super) fn new_entry_header(ty: MessageType, completed_flag: Option<bool>, length: u32) -> Self {
+    pub fn new_entry_header(ty: MessageType, completed_flag: Option<bool>, length: u32) -> Self {
         debug_assert!(completed_flag.is_some() == ty.has_completed_flag());
 
         MessageHeader {
