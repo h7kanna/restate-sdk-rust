@@ -60,9 +60,8 @@ impl RestateContext {
             )
             .await;
             // If the system call is completed, deserialize the result and return
-            //let bytes = bytes.to_vec();
-            let bytes = "hello".to_string().into_bytes();
-            let result: R = serde_json::from_str(&"{ \"test\": \"harsha\"}").unwrap();
+            let bytes = bytes.to_vec();
+            let result: R = serde_json::from_slice(&bytes).unwrap();
             result
         }
     }

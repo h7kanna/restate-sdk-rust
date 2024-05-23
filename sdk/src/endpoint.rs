@@ -65,10 +65,11 @@ mod http2_handler {
             connection::{Connection, RestateStreamConsumer},
             context::RestateContext,
         };
+        use restate_sdk_protos::call_entry_message;
         use restate_sdk_types::{
             protocol::{
                 Message::{CallEntryMessage, InputEntryMessage, StartMessage},
-                INPUT_ENTRY_MESSAGE_TYPE, START_MESSAGE_TYPE,
+                CALL_ENTRY_MESSAGE_TYPE, INPUT_ENTRY_MESSAGE_TYPE, START_MESSAGE_TYPE,
             },
             Message,
         };
@@ -108,10 +109,10 @@ mod http2_handler {
                 input_messages: vec![
                     Message {
                         message_type: START_MESSAGE_TYPE,
-                        message: StartMessage(1, restate_sdk_protos::StartMessage {
+                        message: StartMessage(START_MESSAGE_TYPE, restate_sdk_protos::StartMessage {
                             id: Default::default(),
                             debug_id: "".to_string(),
-                            known_entries: 1,
+                            known_entries: 2,
                             state_map: vec![],
                             partial_state: false,
                             key: "".to_string(),
@@ -121,11 +122,33 @@ mod http2_handler {
                     },
                     Message {
                         message_type: INPUT_ENTRY_MESSAGE_TYPE,
-                        message: InputEntryMessage(1, restate_sdk_protos::InputEntryMessage {
-                            headers: vec![],
-                            value: Default::default(),
-                            name: "".to_string(),
-                        }),
+                        message: InputEntryMessage(
+                            INPUT_ENTRY_MESSAGE_TYPE,
+                            restate_sdk_protos::InputEntryMessage {
+                                headers: vec![],
+                                value: Default::default(),
+                                name: "".to_string(),
+                            },
+                        ),
+                        completed: false,
+                        requires_ack: None,
+                    },
+                    Message {
+                        message_type: CALL_ENTRY_MESSAGE_TYPE,
+                        message: CallEntryMessage(
+                            CALL_ENTRY_MESSAGE_TYPE,
+                            restate_sdk_protos::CallEntryMessage {
+                                service_name: "".to_string(),
+                                handler_name: "".to_string(),
+                                parameter: Default::default(),
+                                headers: vec![],
+                                name: "".to_string(),
+                                key: "".to_string(),
+                                result: Some(call_entry_message::Result::Value(
+                                    "{\"test\":\"harsha\"}".into(),
+                                )),
+                            },
+                        ),
                         completed: false,
                         requires_ack: None,
                     },

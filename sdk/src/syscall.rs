@@ -2,7 +2,7 @@ use crate::machine::StateMachine;
 use bytes::Bytes;
 use parking_lot::Mutex;
 use restate_sdk_protos::CallEntryMessage;
-use restate_sdk_types::protocol::{Message, INVOKE_ENTRY_MESSAGE_TYPE};
+use restate_sdk_types::protocol::{Message, CALL_ENTRY_MESSAGE_TYPE};
 use std::{
     future::Future,
     marker::PhantomData,
@@ -36,12 +36,13 @@ impl<T> Future for CallService<T> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(result) = self.state_machine.lock().handle_user_code_message(
             self.entry_index,
-            Message::CallEntryMessage(INVOKE_ENTRY_MESSAGE_TYPE, self.call_message.clone()),
+            Message::CallEntryMessage(CALL_ENTRY_MESSAGE_TYPE, self.call_message.clone()),
             cx.waker().clone(),
         ) {
+            println!("Result ready");
             Poll::Ready(result)
         } else {
-            println!("I am here");
+            println!("Result pending");
             Poll::Pending
         }
     }

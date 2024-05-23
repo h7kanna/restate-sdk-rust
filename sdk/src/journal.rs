@@ -2,7 +2,9 @@ use crate::invocation::Invocation;
 use bytes::Bytes;
 use dashmap::DashMap;
 use futures_util::task::waker;
-use restate_sdk_protos::{completion_message, CompletionMessage, EntryAckMessage, InputEntryMessage};
+use restate_sdk_protos::{
+    call_entry_message, completion_message, CompletionMessage, EntryAckMessage, InputEntryMessage,
+};
 use restate_sdk_types::protocol::{self, Message, INPUT_ENTRY_MESSAGE_TYPE};
 use std::{cmp::PartialEq, task::Waker};
 use tracing::info;
@@ -112,7 +114,7 @@ impl Journal {
                 NewExecutionState::CLOSED => {}
             }
         }
-        Some(Bytes::new())
+        None
     }
 
     fn handle_replay(&self, entry_index: u32, replay_message: Message, entry: JournalEntry) -> Option<Bytes> {
@@ -128,7 +130,14 @@ impl Journal {
             Message::EndMessage(_, _) => {}
             Message::GetStateEntryMessage(_, _) => {}
             Message::GetStateKeysEntryMessage(_, _) => {}
-            Message::CallEntryMessage(_, call) => {}
+            Message::CallEntryMessage(_, call) => {
+                if let Some(result) = call.result {
+                    match result {
+                        call_entry_message::Result::Value(value) => return Some(value),
+                        call_entry_message::Result::Failure(v) => {}
+                    }
+                }
+            }
             Message::OutputEntryMessage(_, _) => {}
             Message::InputEntryMessage(_, _) => {}
             Message::SetStateEntryMessage(_, _) => {}

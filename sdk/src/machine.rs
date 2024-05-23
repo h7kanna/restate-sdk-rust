@@ -96,6 +96,7 @@ impl StateMachine {
             //self.send(message);
             None
         } else {
+            println!("There  index {:?}, result: {:?}", entry_index, result);
             result
         }
     }
