@@ -249,7 +249,11 @@ impl MessageHeader {
     }
 
     #[inline]
-    pub fn new_entry_header(ty: MessageType, completed_flag: Option<bool>, length: u32) -> Self {
+    pub(super) fn new_entry_header(
+        ty: MessageType,
+        completed_flag: Option<bool>,
+        length: u32,
+    ) -> Self {
         debug_assert!(completed_flag.is_some() == ty.has_completed_flag());
 
         MessageHeader {
@@ -325,7 +329,12 @@ impl TryFrom<u64> for MessageHeader {
         let requires_ack_flag = read_flag_if!(ty.has_requires_ack_flag(), value, REQUIRES_ACK_MASK);
         let length = value as u32;
 
-        Ok(MessageHeader::_new(ty, completed_flag, requires_ack_flag, length))
+        Ok(MessageHeader::_new(
+            ty,
+            completed_flag,
+            requires_ack_flag,
+            length,
+        ))
     }
 }
 
@@ -341,10 +350,15 @@ impl From<MessageHeader> for u64 {
     /// Serialize the protocol header.
     /// See https://github.com/restatedev/service-protocol/blob/main/service-invocation-protocol.md#message-header
     fn from(message_header: MessageHeader) -> Self {
-        let mut res = ((u16::from(message_header.ty) as u64) << 48) | (message_header.length as u64);
+        let mut res =
+            ((u16::from(message_header.ty) as u64) << 48) | (message_header.length as u64);
 
         write_flag!(message_header.completed_flag, &mut res, COMPLETED_MASK);
-        write_flag!(message_header.requires_ack_flag, &mut res, REQUIRES_ACK_MASK);
+        write_flag!(
+            message_header.requires_ack_flag,
+            &mut res,
+            REQUIRES_ACK_MASK
+        );
 
         res
     }

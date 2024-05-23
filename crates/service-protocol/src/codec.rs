@@ -13,7 +13,7 @@ use prost::Message;
 use restate_sdk_types::{
     invocation::Header,
     journal::{
-        raw::{ErrorKind, PlainEntryHeader, PlainRawEntry, RawEntry, RawEntryCodec, RawEntryCodecError, *},
+        raw::{ErrorKind, PlainEntryHeader, PlainRawEntry, RawEntry, RawEntryCodec, RawEntryCodecError},
         CompletionResult, Entry, EntryType,
     },
     service_protocol,

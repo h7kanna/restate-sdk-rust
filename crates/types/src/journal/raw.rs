@@ -12,8 +12,8 @@
 
 use super::*;
 
-use std::fmt::Debug;
 use crate::invocation::Header;
+use std::fmt::Debug;
 
 /// This struct represents headers as they are received from the wire.
 pub type PlainEntryHeader = EntryHeader<(), ()>;

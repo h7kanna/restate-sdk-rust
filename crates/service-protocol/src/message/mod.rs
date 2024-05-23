@@ -66,7 +66,7 @@ impl ProtocolMessage {
         Self::EntryAck(service_protocol::EntryAckMessage { entry_index })
     }
 
-    pub fn encoded_len(&self) -> usize {
+    pub(crate) fn encoded_len(&self) -> usize {
         match self {
             ProtocolMessage::Start(m) => m.encoded_len(),
             ProtocolMessage::Completion(m) => m.encoded_len(),
@@ -82,12 +82,14 @@ impl ProtocolMessage {
 impl From<Completion> for ProtocolMessage {
     fn from(completion: Completion) -> Self {
         match completion.result {
-            CompletionResult::Empty => ProtocolMessage::Completion(service_protocol::CompletionMessage {
-                entry_index: completion.entry_index,
-                result: Some(service_protocol::completion_message::Result::Empty(
-                    service_protocol::Empty {},
-                )),
-            }),
+            CompletionResult::Empty => {
+                ProtocolMessage::Completion(service_protocol::CompletionMessage {
+                    entry_index: completion.entry_index,
+                    result: Some(service_protocol::completion_message::Result::Empty(
+                        service_protocol::Empty {},
+                    )),
+                })
+            }
             CompletionResult::Success(b) => {
                 ProtocolMessage::Completion(service_protocol::CompletionMessage {
                     entry_index: completion.entry_index,

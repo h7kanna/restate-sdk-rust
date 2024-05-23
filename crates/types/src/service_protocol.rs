@@ -280,9 +280,9 @@ mod pb_into {
                 result: match msg.result.ok_or("result")? {
                     complete_awakeable_entry_message::Result::Value(r) => EntryResult::Success(r),
                     complete_awakeable_entry_message::Result::Failure(Failure {
-                                                                          code,
-                                                                          message,
-                                                                      }) => EntryResult::Failure(code.into(), message.into()),
+                        code,
+                        message,
+                    }) => EntryResult::Failure(code.into(), message.into()),
                 },
             }))
         }

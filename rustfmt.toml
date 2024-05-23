@@ -8,5 +8,6 @@ comment_width = 110
 max_width = 110
 inline_attribute_width = 80
 ignore = [
+    "crates/service-protocol",
     "crates/types",
 ]

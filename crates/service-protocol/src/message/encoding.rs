@@ -8,16 +8,15 @@
 // the Business Source License, use of this software will be governed
 // by the Apache License, Version 2.0.
 
-use super::{header::UnknownMessageType, *};
+use super::header::UnknownMessageType;
+use super::*;
 
 use std::mem;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use bytes_utils::SegmentedBuf;
-use restate_sdk_types::{
-    journal::raw::{PlainEntryHeader, RawEntry},
-    service_protocol::ServiceProtocolVersion,
-};
+use restate_sdk_types::journal::raw::{PlainEntryHeader, RawEntry};
+use restate_sdk_types::service_protocol::ServiceProtocolVersion;
 use size::Size;
 use tracing::warn;
 
@@ -91,7 +90,11 @@ fn generate_header(msg: &ProtocolMessage) -> MessageHeader {
         ProtocolMessage::EntryAck(_) => MessageHeader::new(MessageType::EntryAck, len),
         ProtocolMessage::UnparsedEntry(entry) => {
             let completed_flag = entry.header().is_completed();
-            MessageHeader::new_entry_header(raw_header_to_message_type(entry.header()), completed_flag, len)
+            MessageHeader::new_entry_header(
+                raw_header_to_message_type(entry.header()),
+                completed_flag,
+                len,
+            )
         }
     }
 }
@@ -150,7 +153,9 @@ impl Decoder {
     }
 
     /// Try to consume the next message in the internal buffer.
-    pub fn consume_next(&mut self) -> Result<Option<(MessageHeader, ProtocolMessage)>, EncodingError> {
+    pub fn consume_next(
+        &mut self,
+    ) -> Result<Option<(MessageHeader, ProtocolMessage)>, EncodingError> {
         loop {
             let remaining = self.buf.remaining();
 
@@ -158,10 +163,11 @@ impl Decoder {
                 return Ok(None);
             }
 
-            if let Some(res) =
-                self.state
-                    .decode(&mut self.buf, self.message_size_warning, self.message_size_limit)?
-            {
+            if let Some(res) = self.state.decode(
+                &mut self.buf,
+                self.message_size_warning,
+                self.message_size_limit,
+            )? {
                 return Ok(Some(res));
             }
         }
@@ -242,7 +248,9 @@ fn decode_protocol_message(
         }
         MessageType::Error => ProtocolMessage::Error(service_protocol::ErrorMessage::decode(buf)?),
         MessageType::End => ProtocolMessage::End(service_protocol::EndMessage::decode(buf)?),
-        MessageType::EntryAck => ProtocolMessage::EntryAck(service_protocol::EntryAckMessage::decode(buf)?),
+        MessageType::EntryAck => {
+            ProtocolMessage::EntryAck(service_protocol::EntryAckMessage::decode(buf)?)
+        }
         _ => ProtocolMessage::UnparsedEntry(RawEntry::new(
             message_header_to_raw_header(header),
             // NOTE: This is a no-op copy if the Buf is instance of Bytes.
@@ -255,7 +263,8 @@ fn decode_protocol_message(
 
 macro_rules! expect_flag {
     ($message_header:expr, $name:ident) => {
-        MessageHeader::$name($message_header).expect(concat!(stringify!($name), " flag being present"))
+        MessageHeader::$name($message_header)
+            .expect(concat!(stringify!($name), " flag being present"))
     };
 }
 
@@ -340,5 +349,125 @@ fn raw_header_to_message_type(entry_header: &PlainEntryHeader) -> MessageType {
         PlainEntryHeader::CompleteAwakeable { .. } => MessageType::CompleteAwakeableEntry,
         PlainEntryHeader::Run { .. } => MessageType::SideEffectEntry,
         PlainEntryHeader::Custom { code, .. } => MessageType::CustomEntry(*code),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    use restate_sdk_types::journal::raw::RawEntryCodec;
+
+    use crate::codec::ProtobufRawEntryCodec;
+    use assert2::{assert, let_assert};
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn fill_decoder_with_several_messages() {
+        let encoder = Encoder::new(ServiceProtocolVersion::V1);
+        let mut decoder = Decoder::new(ServiceProtocolVersion::V1, usize::MAX, None);
+
+        let expected_msg_0 = ProtocolMessage::new_start_message(
+            "key".into(),
+            "key".into(),
+            Some("key".into()),
+            1,
+            true,
+            vec![],
+        );
+
+        let expected_msg_1: ProtocolMessage = ProtobufRawEntryCodec::serialize_as_input_entry(
+            vec![],
+            Bytes::from_static("input".as_bytes()),
+        )
+        .erase_enrichment()
+        .into();
+        let expected_msg_2: ProtocolMessage = Completion {
+            entry_index: 1,
+            result: CompletionResult::Empty,
+        }
+        .into();
+
+        decoder.push(encoder.encode(expected_msg_0.clone()));
+        decoder.push(encoder.encode(expected_msg_1.clone()));
+        decoder.push(encoder.encode(expected_msg_2.clone()));
+
+        let (actual_msg_header_0, actual_msg_0) = decoder.consume_next().unwrap().unwrap();
+        assert_eq!(actual_msg_header_0.message_type(), MessageType::Start);
+        assert_eq!(actual_msg_0, expected_msg_0);
+
+        let (actual_msg_header_1, actual_msg_1) = decoder.consume_next().unwrap().unwrap();
+        assert_eq!(actual_msg_header_1.message_type(), MessageType::InputEntry);
+        assert_eq!(actual_msg_header_1.completed(), None);
+        assert_eq!(actual_msg_1, expected_msg_1);
+
+        let (actual_msg_header_2, actual_msg_2) = decoder.consume_next().unwrap().unwrap();
+        assert_eq!(actual_msg_header_2.message_type(), MessageType::Completion);
+        assert_eq!(actual_msg_2, expected_msg_2);
+
+        assert!(decoder.consume_next().unwrap().is_none());
+    }
+
+    #[test]
+    fn fill_decoder_with_partial_header() {
+        partial_decoding_test(4)
+    }
+
+    #[test]
+    fn fill_decoder_with_partial_body() {
+        partial_decoding_test(10)
+    }
+
+    fn partial_decoding_test(split_index: usize) {
+        let encoder = Encoder::new(ServiceProtocolVersion::V1);
+        let mut decoder = Decoder::new(ServiceProtocolVersion::V1, usize::MAX, None);
+
+        let expected_msg: ProtocolMessage = ProtobufRawEntryCodec::serialize_as_input_entry(
+            vec![],
+            Bytes::from_static("input".as_bytes()),
+        )
+        .erase_enrichment()
+        .into();
+        let expected_msg_encoded = encoder.encode(expected_msg.clone());
+
+        decoder.push(expected_msg_encoded.slice(0..split_index));
+        assert!(decoder.consume_next().unwrap().is_none());
+
+        decoder.push(expected_msg_encoded.slice(split_index..));
+
+        let (actual_msg_header, actual_msg) = decoder.consume_next().unwrap().unwrap();
+        assert_eq!(actual_msg_header.message_type(), MessageType::InputEntry);
+        assert_eq!(actual_msg_header.completed(), None);
+        assert_eq!(actual_msg, expected_msg);
+
+        assert!(decoder.consume_next().unwrap().is_none());
+    }
+
+    #[test]
+    fn hit_message_size_limit() {
+        let mut decoder = Decoder::new(
+            ServiceProtocolVersion::V1,
+            (u8::MAX / 2) as usize,
+            Some(u8::MAX as usize),
+        );
+
+        let encoder = Encoder::new(ServiceProtocolVersion::V1);
+        let message = ProtocolMessage::from(
+            ProtobufRawEntryCodec::serialize_as_input_entry(
+                vec![],
+                (0..=u8::MAX).collect::<Vec<_>>().into(),
+            )
+            .erase_enrichment(),
+        );
+        let expected_msg_size = message.encoded_len();
+        let msg = encoder.encode(message);
+
+        decoder.push(msg.clone());
+        let_assert!(
+            EncodingError::MessageSizeLimit(msg_size, limit) = decoder.consume_next().unwrap_err()
+        );
+        assert_eq!(msg_size, expected_msg_size);
+        assert_eq!(limit, u8::MAX as usize)
     }
 }
