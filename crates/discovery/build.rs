@@ -5,7 +5,7 @@ use typify::{TypeSpace, TypeSpaceSettings};
 fn main() {
     println!("cargo:rerun-if-changed=./service-protocol/endpoint_manifest_schema.json");
     let mut parsed_content: serde_json::Value = serde_json::from_reader(
-        std::fs::File::open("./service-protocol/endpoint_manifest_schema.json").unwrap(),
+        std::fs::File::open("../service-protocol/endpoint_manifest_schema.json").unwrap(),
     )
     .unwrap();
 

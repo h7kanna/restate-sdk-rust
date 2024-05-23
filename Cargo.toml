@@ -1,10 +1,23 @@
 [workspace]
-members = ["client", "core", "derive", "discovery", "examples", "sdk", "service-protocol", "test-utils", "types"]
+members = [
+    "crates/client",
+    "crates/core",
+    "crates/derive",
+    "crates/discovery",
+    "crates/sdk",
+    "crates/service-protocol",
+    "crates/test-utils",
+    "crates/types",
+    "examples"
+]
 resolver = "2"
 
 [workspace.package]
+version = "0.1.0"
 rust-version = "1.75"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/restatedev/sdk-rust"
+description = "Restate Rust SDK"
 
 [workspace.dependencies]
 anyhow = "1.0"
