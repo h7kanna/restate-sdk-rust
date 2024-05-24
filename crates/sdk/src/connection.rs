@@ -11,7 +11,10 @@ use restate_sdk_types::{
     protocol,
     service_protocol::{EndMessage, ServiceProtocolVersion},
 };
-use restate_service_protocol::message::{Decoder, Encoder, ProtocolMessage};
+use restate_service_protocol::{
+    codec::ProtobufRawEntryCodec,
+    message::{Decoder, Encoder, MessageHeader, ProtocolMessage},
+};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
@@ -29,7 +32,7 @@ pub trait Connection: Send {
 }
 
 pub struct Http2Connection {
-    inbound_rx: UnboundedReceiver<ProtocolMessage>,
+    inbound_rx: UnboundedReceiver<(MessageHeader, ProtocolMessage)>,
     outbound_tx: UnboundedSender<ProtocolMessage>,
 }
 
@@ -55,7 +58,7 @@ impl Http2Connection {
                         Ok(result) => {
                             if let Some((header, message)) = result {
                                 println!("Header: {:?}, Message: {:?}", header, message);
-                                if let Err(err) = inbound_tx.send(message) {
+                                if let Err(err) = inbound_tx.send((header, message)) {
                                     println!("Send failed {}", err);
                                 }
                             }
@@ -92,7 +95,16 @@ impl MessageStreamer for Http2Connection {
     async fn pipe_to_consumer(&mut self, mut consumer: impl RestateStreamConsumer) {
         // Setup inbound message consumer
         loop {
-            if let Some(message) = self.inbound_rx.recv().await {
+            if let Some((header, message)) = self.inbound_rx.recv().await {
+                match message {
+                    ProtocolMessage::UnparsedEntry(raw_entry) => {
+                        let expected_entry = raw_entry
+                            .deserialize_entry_ref::<ProtobufRawEntryCodec>()
+                            .unwrap();
+                        println!("Entry received {:?}", expected_entry);
+                    }
+                    _ => {}
+                }
                 let message = restate_sdk_types::Message {
                     message_type: 0,
                     message: protocol::Message::EndMessage(1, EndMessage {}),
