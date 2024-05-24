@@ -1,19 +1,26 @@
 #![deny(warnings)]
 
+use anyhow::anyhow;
 use bytes::Bytes;
-use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+use futures_util::{pin_mut, StreamExt};
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full, StreamBody};
 use hyper::{
-    body::Frame, header::HeaderValue, server::conn::http2, service::service_fn, Method, Request, Response,
-    StatusCode,
+    body::Frame, server::conn::http2, service::service_fn, Method, Request, Response, Result, StatusCode,
 };
 use hyper_util::rt::{TokioExecutor, TokioIo};
-use restate_sdk_types::service_protocol::ServiceProtocolVersion;
-use restate_service_protocol::message::Decoder;
-use std::net::SocketAddr;
+use prost::Message;
+use restate_sdk_types::{
+    journal::raw::{PlainEntryHeader, RawEntry},
+    service_protocol,
+    service_protocol::ServiceProtocolVersion,
+};
+use restate_service_protocol::message::{Decoder, Encoder, ProtocolMessage};
+use std::{net::SocketAddr, time::Duration};
 use tokio::net::TcpListener;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn main() -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
 
     let listener = TcpListener::bind(addr).await?;
@@ -34,9 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 }
 
-async fn service(
-    req: Request<hyper::body::Incoming>,
-) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
+async fn service(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody<Bytes, anyhow::Error>>> {
     match (req.method(), req.uri().path()) {
         // Serve some instructions at /
         (&Method::POST, "/discover") => {
@@ -52,6 +57,10 @@ async fn service(
         {
           "name": "greet",
           "ty": "EXCLUSIVE"
+        },
+        {
+          "name": "greet2",
+          "ty": "EXCLUSIVE"
         }
       ]
     }
@@ -61,59 +70,184 @@ async fn service(
             for (name, header) in req.headers() {
                 println!("{:?}, {:?}", name, header);
             }
-            //let content_type = content_type.to_str().unwrap();
-            let mut response = Response::new(full(manifest));
-            //response.headers_mut().insert(":status", HeaderValue::from(200));
-            response
-                .headers_mut()
-                .insert("content-type", HeaderValue::from_str("application/json").unwrap());
-            response.headers_mut().insert(
-                "x-restate-server",
-                HeaderValue::from_str("restate-sdk-rust/0.1.0").unwrap(),
-            );
+
+            let response = Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", "application/json")
+                .header("x-restate-server", "restate-sdk-rust/0.1.0")
+                .body(full(manifest).map_err(|e| e.into()).boxed())
+                .unwrap();
             Ok(response)
         }
 
         // Convert to uppercase before sending back to the client using a stream.
-        (&Method::POST, "/services/Greeter/greet2") => {
-            let frame_stream = req.into_body().map_frame(|frame| {
-                let frame = if let Ok(data) = frame.into_data() {
-                    data.iter()
-                        .map(|byte| byte.to_ascii_uppercase())
-                        .collect::<Bytes>()
-                } else {
-                    Bytes::new()
-                };
+        (&Method::POST, "/invoke/Greeter/greet2") => {
+            println!("{}, {}", req.method(), req.uri().path());
+            for (name, header) in req.headers() {
+                println!("{:?}, {:?}", name, header);
+            }
 
-                Frame::data(frame)
+            let frame_stream = http_body_util::BodyStream::new(
+                req.into_body()
+                    .map_frame(move |frame| frame)
+                    .map_err(|_e| anyhow!("error"))
+                    .boxed(),
+            );
+
+            tokio::spawn(async move {
+                let mut decoder = Decoder::new(ServiceProtocolVersion::V1, usize::MAX, None);
+                pin_mut!(frame_stream);
+                while let Some(Ok(frame)) = frame_stream.next().await {
+                    if let Ok(data) = frame.into_data() {
+                        decoder.push(data);
+                        match decoder.consume_next() {
+                            Ok(result) => {
+                                if let Some((header, message)) = result {
+                                    println!("Header: {:?}, Message: {:?}", header, message);
+                                }
+                            }
+                            Err(err) => {
+                                println!("decode error: {:?}", err);
+                            }
+                        }
+                    };
+                }
             });
 
-            Ok(Response::new(frame_stream.boxed()))
+
+            let (message_tx, message_rx) = tokio::sync::mpsc::unbounded_channel();
+            let message_stream = UnboundedReceiverStream::new(message_rx);
+            let stream_body = StreamBody::new(message_stream);
+            let boxed_body = BodyExt::boxed(stream_body);
+
+            let encoder = Encoder::new(ServiceProtocolVersion::V1);
+            tokio::spawn(async move {
+                //tokio::time::sleep(Duration::from_secs(5)).await;
+                let result = service_protocol::OutputEntryMessage {
+                    name: "".to_string(),
+                    result: Some(service_protocol::output_entry_message::Result::Value(
+                        Bytes::from("success3"),
+                    )),
+                };
+                let output = encoder.encode(ProtocolMessage::UnparsedEntry(RawEntry::new(
+                    PlainEntryHeader::Output,
+                    result.encode_to_vec().into(),
+                )));
+                message_tx.send(Ok(Frame::data(output))).unwrap();
+
+                let end = encoder.encode(ProtocolMessage::End(service_protocol::EndMessage {}));
+                message_tx.send(Ok(Frame::data(end))).unwrap();
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            });
+
+            let response = Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", "application/restate")
+                .header("x-restate-server", "restate-sdk-rust/0.1.0")
+                .body(boxed_body)
+                .unwrap();
+            Ok(response)
         }
 
         (&Method::POST, "/invoke/Greeter/greet") => {
-            let mut decoder = Decoder::new(ServiceProtocolVersion::V1, usize::MAX, None);
-            let frame_stream  = req.into_body().map_frame(move |frame| {
-                if let Ok(data) = frame.into_data() {
-                    decoder.push(data);
-                    if let Ok(Some((header, message))) = decoder.consume_next() {
-                        println!("Header: {:?}, Message: {:?}", header, message)
-                    } else {
-                        println!("decode error");
-                    }
-                };
-                Frame::data(Bytes::new())
+            println!("{}, {}", req.method(), req.uri().path());
+            for (name, header) in req.headers() {
+                println!("{:?}, {:?}", name, header);
+            }
+
+            let frame_stream = http_body_util::BodyStream::new(
+                req.into_body()
+                    .map_frame(move |frame| frame)
+                    .map_err(|_e| anyhow!("error"))
+                    .boxed(),
+            );
+
+            tokio::spawn(async move {
+                let mut decoder = Decoder::new(ServiceProtocolVersion::V1, usize::MAX, None);
+                pin_mut!(frame_stream);
+                while let Some(Ok(frame)) = frame_stream.next().await {
+                    if let Ok(data) = frame.into_data() {
+                        decoder.push(data);
+                        match decoder.consume_next() {
+                            Ok(result) => {
+                                if let Some((header, message)) = result {
+                                    println!("Header: {:?}, Message: {:?}", header, message);
+                                }
+                            }
+                            Err(err) => {
+                                println!("decode error: {:?}", err);
+                            }
+                        }
+                    };
+                }
             });
 
-            Ok(Response::new(frame_stream.boxed()))
+            let (message_tx, message_rx) = tokio::sync::mpsc::unbounded_channel();
+            let message_stream = UnboundedReceiverStream::new(message_rx);
+            let stream_body = StreamBody::new(message_stream);
+            let boxed_body = BodyExt::boxed(stream_body);
+
+            let encoder = Encoder::new(ServiceProtocolVersion::V1);
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+
+                let result = service_protocol::CallEntryMessage {
+                    service_name: "Greeter".to_string(),
+                    handler_name: "greet2".to_string(),
+                    parameter: Bytes::from("hello again"),
+                    headers: vec![],
+                    key: "".to_string(),
+                    name: "".to_string(),
+                    result: None,
+                };
+
+                let call = encoder.encode(ProtocolMessage::UnparsedEntry(RawEntry::new(
+                    PlainEntryHeader::Call {
+                        is_completed: false,
+                        enrichment_result: None,
+                    },
+                    result.encode_to_vec().into(),
+                )));
+                message_tx.send(Ok(Frame::data(call))).unwrap();
+
+                tokio::time::sleep(Duration::from_secs(10)).await;
+
+                let result = service_protocol::OutputEntryMessage {
+                    name: "".to_string(),
+                    result: Some(service_protocol::output_entry_message::Result::Value(
+                        Bytes::from("success2"),
+                    )),
+                };
+
+                let output = encoder.encode(ProtocolMessage::UnparsedEntry(RawEntry::new(
+                    PlainEntryHeader::Output,
+                    result.encode_to_vec().into(),
+                )));
+                message_tx.send(Ok(Frame::data(output))).unwrap();
+
+                let end = encoder.encode(ProtocolMessage::End(service_protocol::EndMessage {}));
+                message_tx.send(Ok(Frame::data(end))).unwrap();
+                tokio::time::sleep(Duration::from_secs(10)).await;
+            });
+
+            let response = Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", "application/restate")
+                .header("x-restate-server", "restate-sdk-rust/0.1.0")
+                .body(boxed_body)
+                .unwrap();
+
+            Ok(response)
         }
 
         // Return the 404 Not Found for other routes.
         _ => {
             println!("{}, {}", req.method(), req.uri().path());
-            let mut not_found = Response::new(empty());
-            *not_found.status_mut() = StatusCode::NOT_FOUND;
-            Ok(not_found)
+            let response = Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(empty().map_err(|e| e.into()).boxed())
+                .unwrap();
+            Ok(response)
         }
     }
 }
