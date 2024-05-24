@@ -9,6 +9,7 @@ use crate::{
 use bytes::Bytes;
 use parking_lot::Mutex;
 use prost::Message;
+use restate_sdk_core::ServiceHandler;
 use restate_sdk_types::{
     journal::{
         raw::{PlainEntryHeader, PlainRawEntry},
@@ -29,10 +30,12 @@ pub(crate) struct StateMachine {
     logger: Logger,
     suspension_tx: UnboundedSender<String>,
     connection: Box<dyn Connection>,
+    input: Option<Bytes>,
 }
 
 impl StateMachine {
     pub fn new(connection: Box<dyn Connection>, invocation: Invocation) -> (Self, UnboundedReceiver<String>) {
+        let input = invocation.invocation_value.clone();
         let (suspension_tx, suspension_rx) = unbounded_channel();
         (
             Self {
@@ -43,17 +46,23 @@ impl StateMachine {
                 logger: Logger::new(),
                 suspension_tx,
                 connection,
+                input,
             },
             suspension_rx,
         )
     }
 
-    pub async fn invoke(state_machine: Arc<Mutex<StateMachine>>) {
+    pub async fn invoke<F, I, R>(service_fn: F, state_machine: Arc<Mutex<StateMachine>>)
+    where
+        for<'a> I: Serialize + Deserialize<'a>,
+        for<'a> R: Serialize + Deserialize<'a>,
+        F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+    {
+        let input = state_machine.lock().input.clone().unwrap();
         let ctx = RestateContext::new(state_machine.clone());
-        let result = service_fn(ctx, ExecInput {
-            test: "hello".to_string(),
-        })
-        .await;
+        let result = RestateContext::invoke_service(ctx, service_fn, input)
+            .await
+            .unwrap();
         let result = serde_json::to_string(&result).unwrap();
         let output: ProtocolMessage = PlainRawEntry::new(
             PlainEntryHeader::Output,
@@ -139,21 +148,6 @@ impl RestateStreamConsumer for &mut StateMachine {
     }
 }
 
-
-#[derive(Serialize, Deserialize)]
-pub struct ExecInput {
-    test: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ExecOutput {
-    test: String,
-}
-
-async fn service_fn(ctx: RestateContext, name: ExecInput) -> ExecOutput {
-    ctx.invoke_service::<String, ExecInput, ExecOutput>("".to_string(), name)
-        .await
-}
 
 #[cfg(test)]
 mod tests {

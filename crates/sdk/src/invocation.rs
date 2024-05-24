@@ -22,6 +22,7 @@ enum State {
 pub(crate) struct Invocation {
     pub nb_entries_to_replay: u32,
     pub replay_entries: DashMap<u32, Entry>,
+    pub invocation_value: Option<Bytes>,
 }
 
 pub(crate) struct InvocationBuilder {
@@ -91,6 +92,7 @@ impl InvocationBuilder {
         Invocation {
             nb_entries_to_replay: self.nb_entries_to_replay,
             replay_entries: self.replay_entries,
+            invocation_value: self.invocation_value,
         }
     }
 

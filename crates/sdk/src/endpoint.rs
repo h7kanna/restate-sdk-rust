@@ -5,18 +5,33 @@ pub struct RestateEndpoint {}
 mod http2_handler {
     use crate::{
         connection::{Connection, Http2Connection, MessageStreamer},
+        context::RestateContext,
         invocation::InvocationBuilder,
         machine::StateMachine,
     };
     use parking_lot::Mutex;
+    use restate_sdk_core::ServiceHandler;
+    use serde::{Deserialize, Serialize};
     use std::sync::Arc;
     use tokio_util::sync::CancellationToken;
 
-    pub async fn handle(connection: Http2Connection) {
-        handle_invocation(connection).await
+    pub async fn handle<F, I, R>(service_fn: F, connection: Http2Connection)
+    where
+        for<'a> I: Serialize + Deserialize<'a>,
+        for<'a> R: Serialize + Deserialize<'a>,
+        F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+    {
+        handle_invocation(service_fn, connection).await
     }
 
-    pub async fn handle_invocation(mut connection: impl Connection + MessageStreamer + 'static) {
+    pub async fn handle_invocation<F, I, R>(
+        service_fn: F,
+        mut connection: impl Connection + MessageStreamer + 'static,
+    ) where
+        for<'a> I: Serialize + Deserialize<'a>,
+        for<'a> R: Serialize + Deserialize<'a>,
+        F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+    {
         // step 1: collect all journal entries
         let mut builder = InvocationBuilder::new();
         connection.pipe_to_consumer(&mut builder).await;
@@ -55,7 +70,7 @@ mod http2_handler {
         });
 
         // step 5: invoke the function
-        StateMachine::invoke(state_machine).await
+        StateMachine::invoke(service_fn, state_machine).await
     }
 
     #[cfg(test)]
@@ -71,6 +86,7 @@ mod http2_handler {
             service_protocol::call_entry_message,
         };
         use restate_service_protocol::message::{MessageType, ProtocolMessage};
+        use serde::{Deserialize, Serialize};
         use std::time::Duration;
         use tokio::sync::mpsc::{channel, UnboundedSender};
         use tokio_util::sync::CancellationToken;
@@ -93,6 +109,28 @@ mod http2_handler {
             fn send(&mut self, message: ProtocolMessage) {
                 self.output_messages.send(message).unwrap();
             }
+        }
+
+        #[derive(Serialize, Deserialize)]
+        pub struct ExecInput {
+            test: String,
+        }
+
+        #[derive(Serialize, Deserialize)]
+        pub struct ExecOutput {
+            test: String,
+        }
+
+        async fn service_fn(ctx: RestateContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+            let output = ctx
+                .invoke(greet_fn, "Greeter".to_string(), "greet".to_string(), name, None)
+                .await
+                .unwrap();
+            Ok(ExecOutput { test: output.test })
+        }
+
+        async fn greet_fn(ctx: RestateContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+            Ok(ExecOutput { test: name.test })
         }
 
         #[traced_test]
@@ -122,7 +160,7 @@ mod http2_handler {
                             PlainEntryHeader::Input,
                             restate_sdk_types::service_protocol::InputEntryMessage {
                                 headers: vec![],
-                                value: "{\"input\":\"test\"}".into(),
+                                value: "{\"test\":\"test\"}".into(),
                                 name: "".to_string(),
                             }
                             .encode_to_vec()
@@ -140,7 +178,7 @@ mod http2_handler {
                             restate_sdk_types::service_protocol::CallEntryMessage {
                                 service_name: "".to_string(),
                                 handler_name: "".to_string(),
-                                parameter: Default::default(),
+                                parameter: "{\"test\":\"test\"}".into(),
                                 headers: vec![],
                                 name: "".to_string(),
                                 key: "".to_string(),
@@ -162,7 +200,7 @@ mod http2_handler {
                     _ = token2.cancelled() => {
 
                     }
-                    _ = handle_invocation(connection) => {
+                    _ = handle_invocation(service_fn,connection) => {
 
                     }
                 }
