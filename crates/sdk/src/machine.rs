@@ -120,7 +120,7 @@ impl StateMachine {
 }
 
 impl RestateStreamConsumer for &mut StateMachine {
-    async fn handle(&mut self, message: Message) -> bool {
+    fn handle(&mut self, message: Message) -> bool {
         if message.message_type == COMPLETION_MESSAGE_TYPE {
             if let CompletionMessage(_, message) = message.message {
                 self.journal.handle_runtime_completion_message(message);

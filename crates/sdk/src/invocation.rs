@@ -84,7 +84,7 @@ impl InvocationBuilder {
 }
 
 impl RestateStreamConsumer for &mut InvocationBuilder {
-    async fn handle(&mut self, message: Message) -> bool {
+    fn handle(&mut self, message: Message) -> bool {
         match self.state {
             State::ExpectingStart => {
                 self.check_state(self.state, message.message_type, &message);

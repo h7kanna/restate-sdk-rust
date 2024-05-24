@@ -13,18 +13,18 @@ mod http2_handler {
     use tokio_util::sync::CancellationToken;
 
     pub async fn handle(connection: Http2Connection) {
-        handle_connection(connection).await
+        handle_invocation(connection).await
     }
 
-    pub async fn handle_connection(connection: impl Connection + MessageStreamer + 'static) {
+    pub async fn handle_invocation(connection: impl Connection + MessageStreamer + 'static) {
         // step 1: collect all journal entries
         let mut builder = InvocationBuilder::new();
-        connection.stream_to_consumer(&mut builder).await;
+        connection.pipe_to_consumer(&mut builder);
         let invocation = builder.build();
 
         // step 2: create the state machine
         let (mut state_machine, mut suspension_rx) = StateMachine::new(Box::new(connection), invocation);
-        //connection.stream_to_consumer(&mut state_machine).await;
+        //connection.pipe_to_consumer(&mut state_machine);
 
         let state_machine = Arc::new(Mutex::new(state_machine));
         let message_consumer = state_machine.clone();
@@ -84,9 +84,9 @@ mod http2_handler {
         }
 
         impl MessageStreamer for TestDriver {
-            async fn stream_to_consumer(&self, mut consumer: impl RestateStreamConsumer) {
+            fn pipe_to_consumer(&self, mut consumer: impl RestateStreamConsumer) {
                 for message in &self.input_messages {
-                    consumer.handle(message.clone()).await;
+                    consumer.handle(message.clone());
                 }
             }
         }
@@ -164,7 +164,7 @@ mod http2_handler {
                     _ = token2.cancelled() => {
 
                     }
-                    _ = handle_connection(connection) => {
+                    _ = handle_invocation(connection) => {
 
                     }
                 }
