@@ -75,7 +75,14 @@ impl StateMachine {
     }
 
     pub fn handle_runtime_message(&mut self, message: ProtocolMessage) -> Bytes {
-        //self.journal.handle_runtime_completion_message();
+        match message {
+            ProtocolMessage::Completion(completion) => {
+                self.journal.handle_runtime_completion_message(completion);
+            }
+            _ => {
+                // Error
+            }
+        }
         Bytes::new()
     }
 
@@ -103,7 +110,7 @@ impl StateMachine {
     }
 
     fn send(&mut self, message: ProtocolMessage) {
-        //self.connection.send(message);
+        self.connection.send(message);
     }
 
     fn hit_suspension(&self) {
