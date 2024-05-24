@@ -54,6 +54,17 @@ impl InvocationBuilder {
         }
     }
 
+    pub fn build(self) -> Invocation {
+        if !self.is_complete() {
+            // Error
+        }
+        Invocation {
+            nb_entries_to_replay: self.nb_entries_to_replay,
+            replay_entries: self.replay_entries,
+            invocation_value: self.invocation_value,
+        }
+    }
+
     fn handle_start_message(&mut self, message: StartMessage) {
         self.nb_entries_to_replay = message.known_entries;
         self.id = Some(message.id);
@@ -83,17 +94,6 @@ impl InvocationBuilder {
 
     fn is_complete(&self) -> bool {
         self.state == State::Complete
-    }
-
-    pub fn build(self) -> Invocation {
-        if !self.is_complete() {
-            // Error
-        }
-        Invocation {
-            nb_entries_to_replay: self.nb_entries_to_replay,
-            replay_entries: self.replay_entries,
-            invocation_value: self.invocation_value,
-        }
     }
 
     fn check_state(&self, state: State, expected: MessageType, message: &ProtocolMessage) {}

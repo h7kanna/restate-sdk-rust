@@ -9,6 +9,5 @@ rust-version = { workspace = true }
 default = []
 
 [dependencies]
-anyhow = "1.0"
-futures = "0.3"
-futures-util = "0.3"
+anyhow = { workspace = true }
+futures = { workspace = true }
