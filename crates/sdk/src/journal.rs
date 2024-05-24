@@ -20,7 +20,7 @@ pub enum NewExecutionState {
 
 #[derive(Debug, Clone)]
 pub struct JournalEntry {
-    pub message: Entry,
+    pub entry: Entry,
     pub waker: Option<Waker>,
 }
 
@@ -58,7 +58,7 @@ impl Journal {
             self.transition_state(NewExecutionState::PROCESSING);
         }
         self.pending_entries.insert(0, JournalEntry {
-            message: Entry::Input(input),
+            entry: Entry::Input(input),
             waker: None,
         });
     }
@@ -100,7 +100,7 @@ impl Journal {
                         self.invocation.replay_entries.get(&self.user_code_journal_index)
                     {
                         let journal_entry = JournalEntry {
-                            message,
+                            entry: message,
                             waker: Some(waker),
                         };
                         let replay_message = replay_entry.clone();
@@ -204,7 +204,7 @@ impl Journal {
     pub fn append_entry(&self, message: Entry, waker: Waker) {
         self.pending_entries
             .insert(self.user_code_journal_index, JournalEntry {
-                message,
+                entry: message,
                 waker: Some(waker),
             });
     }

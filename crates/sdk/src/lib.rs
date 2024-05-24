@@ -5,7 +5,6 @@ mod combinators;
 pub mod connection;
 mod errors;
 mod invocation;
-mod io;
 mod journal;
 mod logger;
 mod machine;
