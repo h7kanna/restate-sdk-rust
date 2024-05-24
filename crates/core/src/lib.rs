@@ -4,9 +4,7 @@ use std::future::Future;
 
 pub trait RestateContext {}
 
-
 pub trait RestateObjectContext {}
-
 
 pub trait RestateObjectSharedContext {}
 

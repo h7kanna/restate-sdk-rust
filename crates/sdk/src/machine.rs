@@ -59,10 +59,9 @@ impl StateMachine {
         F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
     {
         let input = state_machine.lock().input.clone().unwrap();
+        let input = serde_json::from_slice(&input.to_vec()).unwrap();
         let ctx = RestateContext::new(state_machine.clone());
-        let result = RestateContext::invoke_service(ctx, service_fn, input)
-            .await
-            .unwrap();
+        let result = service_fn(ctx, input).await.unwrap();
         let result = serde_json::to_string(&result).unwrap();
         let output: ProtocolMessage = PlainRawEntry::new(
             PlainEntryHeader::Output,

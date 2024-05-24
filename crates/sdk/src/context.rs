@@ -1,5 +1,4 @@
 use crate::{machine::StateMachine, syscall::CallService};
-use bytes::Bytes;
 use futures_util::FutureExt;
 use parking_lot::Mutex;
 use restate_sdk_core::ServiceHandler;
@@ -20,20 +19,6 @@ pub struct RestateContext {
 impl RestateContext {
     pub(crate) fn new(state_machine: Arc<Mutex<StateMachine>>) -> Self {
         RestateContext { state_machine }
-    }
-
-    pub(crate) async fn invoke_service<F, I, R>(
-        ctx: RestateContext,
-        func: F,
-        input: Bytes,
-    ) -> Result<R, anyhow::Error>
-    where
-        for<'a> I: Serialize + Deserialize<'a>,
-        for<'a> R: Serialize + Deserialize<'a>,
-        F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
-    {
-        let input = serde_json::from_slice(&input.to_vec()).unwrap();
-        func(ctx, input).await
     }
 
     pub fn invoke<F, I, R>(
