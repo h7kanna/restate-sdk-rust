@@ -7,7 +7,7 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use prost::Message;
 use restate_sdk::connection::{Connection, Http2Connection};
 use restate_sdk_types::{
-    journal::raw::{PlainEntryHeader, RawEntry},
+    journal::raw::{PlainEntryHeader, PlainRawEntry},
     service_protocol,
 };
 use restate_service_protocol::message::ProtocolMessage;
@@ -86,16 +86,20 @@ async fn service(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody
 
             tokio::spawn(async move {
                 //tokio::time::sleep(Duration::from_secs(5)).await;
-                let result = service_protocol::OutputEntryMessage {
-                    name: "".to_string(),
-                    result: Some(service_protocol::output_entry_message::Result::Value(
-                        Bytes::from("success3"),
-                    )),
-                };
-                http2conn.send(ProtocolMessage::UnparsedEntry(RawEntry::new(
-                    PlainEntryHeader::Output,
-                    result.encode_to_vec().into(),
-                )));
+                http2conn.send(
+                    PlainRawEntry::new(
+                        PlainEntryHeader::Output,
+                        service_protocol::OutputEntryMessage {
+                            name: "".to_string(),
+                            result: Some(service_protocol::output_entry_message::Result::Value(
+                                Bytes::from("success3"),
+                            )),
+                        }
+                        .encode_to_vec()
+                        .into(),
+                    )
+                    .into(),
+                );
 
                 http2conn.send(ProtocolMessage::End(service_protocol::EndMessage {}));
                 tokio::time::sleep(Duration::from_secs(2)).await;
@@ -121,37 +125,43 @@ async fn service(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody
             tokio::spawn(async move {
                 tokio::time::sleep(Duration::from_secs(1)).await;
 
-                let result = service_protocol::CallEntryMessage {
-                    service_name: "Greeter".to_string(),
-                    handler_name: "greet2".to_string(),
-                    parameter: Bytes::from("hello again"),
-                    headers: vec![],
-                    key: "".to_string(),
-                    name: "".to_string(),
-                    result: None,
-                };
-
-                http2conn.send(ProtocolMessage::UnparsedEntry(RawEntry::new(
-                    PlainEntryHeader::Call {
-                        is_completed: false,
-                        enrichment_result: None,
-                    },
-                    result.encode_to_vec().into(),
-                )));
+                http2conn.send(
+                    PlainRawEntry::new(
+                        PlainEntryHeader::Call {
+                            is_completed: false,
+                            enrichment_result: None,
+                        },
+                        service_protocol::CallEntryMessage {
+                            service_name: "Greeter".to_string(),
+                            handler_name: "greet2".to_string(),
+                            parameter: Bytes::from("hello again"),
+                            headers: vec![],
+                            key: "".to_string(),
+                            name: "".to_string(),
+                            result: None,
+                        }
+                        .encode_to_vec()
+                        .into(),
+                    )
+                    .into(),
+                );
 
                 tokio::time::sleep(Duration::from_secs(10)).await;
 
-                let result = service_protocol::OutputEntryMessage {
-                    name: "".to_string(),
-                    result: Some(service_protocol::output_entry_message::Result::Value(
-                        Bytes::from("success2"),
-                    )),
-                };
-
-                http2conn.send(ProtocolMessage::UnparsedEntry(RawEntry::new(
-                    PlainEntryHeader::Output,
-                    result.encode_to_vec().into(),
-                )));
+                http2conn.send(
+                    PlainRawEntry::new(
+                        PlainEntryHeader::Output,
+                        service_protocol::OutputEntryMessage {
+                            name: "".to_string(),
+                            result: Some(service_protocol::output_entry_message::Result::Value(
+                                Bytes::from("success2"),
+                            )),
+                        }
+                        .encode_to_vec()
+                        .into(),
+                    )
+                    .into(),
+                );
 
                 http2conn.send(ProtocolMessage::End(service_protocol::EndMessage {}));
                 tokio::time::sleep(Duration::from_secs(10)).await;
