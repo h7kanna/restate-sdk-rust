@@ -41,7 +41,7 @@ size = "0.4.1"
 thiserror = "1.0"
 time = "0.3.36"
 tokio = { version = "1", features = ["full"] }
-tokio-stream = "0.1.15"
+tokio-stream = { version = "0.1.15"}
 tokio-test = { version = "0.4.4" }
 tokio-util = { version = "0.7.11", features = ["full"] }
 tower = { version = "0.4.13", features = ["util"] }

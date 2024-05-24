@@ -16,15 +16,15 @@ mod http2_handler {
         handle_invocation(connection).await
     }
 
-    pub async fn handle_invocation(connection: impl Connection + MessageStreamer + 'static) {
+    pub async fn handle_invocation(mut connection: impl Connection + MessageStreamer + 'static) {
         // step 1: collect all journal entries
         let mut builder = InvocationBuilder::new();
-        connection.pipe_to_consumer(&mut builder);
+        connection.pipe_to_consumer(&mut builder).await;
         let invocation = builder.build();
 
         // step 2: create the state machine
         let (mut state_machine, mut suspension_rx) = StateMachine::new(Box::new(connection), invocation);
-        //connection.pipe_to_consumer(&mut state_machine);
+        //connection.pipe_to_consumer(&mut state_machine).await;
 
         let state_machine = Arc::new(Mutex::new(state_machine));
         let message_consumer = state_machine.clone();
@@ -84,7 +84,7 @@ mod http2_handler {
         }
 
         impl MessageStreamer for TestDriver {
-            fn pipe_to_consumer(&self, mut consumer: impl RestateStreamConsumer) {
+            async fn pipe_to_consumer(&mut self, mut consumer: impl RestateStreamConsumer) {
                 for message in &self.input_messages {
                     consumer.handle(message.clone());
                 }
