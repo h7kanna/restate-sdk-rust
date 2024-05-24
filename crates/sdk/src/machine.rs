@@ -8,15 +8,15 @@ use crate::{
 };
 use bytes::Bytes;
 use parking_lot::Mutex;
+use prost::Message;
 use restate_sdk_types::{
-    protocol,
-    protocol::{
-        Message::{CompletionMessage, EndMessage, EntryAckMessage, OutputEntryMessage},
-        COMPLETION_MESSAGE_TYPE, END_MESSAGE_TYPE, ENTRY_ACK_MESSAGE_TYPE, OUTPUT_ENTRY_MESSAGE_TYPE,
+    journal::{
+        raw::{PlainEntryHeader, PlainRawEntry},
+        Entry,
     },
-    service_protocol::output_entry_message,
-    Message,
+    service_protocol,
 };
+use restate_service_protocol::message::{MessageHeader, MessageType, ProtocolMessage};
 use serde::{Deserialize, Serialize};
 use std::{future::Future, sync::Arc, task::Waker};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
@@ -55,32 +55,26 @@ impl StateMachine {
         })
         .await;
         let result = serde_json::to_string(&result).unwrap();
-        let output = Message {
-            message_type: OUTPUT_ENTRY_MESSAGE_TYPE,
-            message: OutputEntryMessage(
-                OUTPUT_ENTRY_MESSAGE_TYPE,
-                restate_sdk_types::service_protocol::OutputEntryMessage {
-                    name: "".to_string(),
-                    result: Some(output_entry_message::Result::Value(result.into())),
-                },
-            ),
-            completed: false,
-            requires_ack: None,
-        };
+        let output: ProtocolMessage = PlainRawEntry::new(
+            PlainEntryHeader::Output,
+            service_protocol::OutputEntryMessage {
+                name: "".to_string(),
+                result: Some(service_protocol::output_entry_message::Result::Value(
+                    result.into(),
+                )),
+            }
+            .encode_to_vec()
+            .into(),
+        )
+        .into();
         println!("{:?} end", output);
-        state_machine.lock().send(Message {
-            message_type: END_MESSAGE_TYPE,
-            message: EndMessage(
-                END_MESSAGE_TYPE,
-                restate_sdk_types::service_protocol::EndMessage {},
-            ),
-            completed: false,
-            requires_ack: None,
-        });
+        state_machine
+            .lock()
+            .send(ProtocolMessage::End(service_protocol::EndMessage {}));
         //state_machine.lock().handle_user_code_message(output.message_type, output.message);
     }
 
-    pub fn handle_runtime_message(&mut self, message: Message) -> Bytes {
+    pub fn handle_runtime_message(&mut self, message: ProtocolMessage) -> Bytes {
         //self.journal.handle_runtime_completion_message();
         Bytes::new()
     }
@@ -88,7 +82,7 @@ impl StateMachine {
     pub fn handle_user_code_message(
         &mut self,
         entry_index: u32,
-        message: protocol::Message,
+        message: Entry,
         waker: Waker,
     ) -> Option<Bytes> {
         if self.closed {}
@@ -108,7 +102,7 @@ impl StateMachine {
         return self.journal.get_next_user_code_journal_index();
     }
 
-    fn send(&mut self, message: Message) {
+    fn send(&mut self, message: ProtocolMessage) {
         //self.connection.send(message);
     }
 
@@ -120,15 +114,15 @@ impl StateMachine {
 }
 
 impl RestateStreamConsumer for &mut StateMachine {
-    fn handle(&mut self, message: Message) -> bool {
-        if message.message_type == COMPLETION_MESSAGE_TYPE {
-            if let CompletionMessage(_, message) = message.message {
+    fn handle(&mut self, message: (MessageHeader, ProtocolMessage)) -> bool {
+        if message.0.message_type() == MessageType::Completion {
+            if let ProtocolMessage::Completion(message) = message.1 {
                 self.journal.handle_runtime_completion_message(message);
             } else {
                 // Wrong message type
             }
-        } else if message.message_type == ENTRY_ACK_MESSAGE_TYPE {
-            if let EntryAckMessage(_, message) = message.message {
+        } else if message.0.message_type() == MessageType::EntryAck {
+            if let ProtocolMessage::EntryAck(message) = message.1 {
             } else {
                 // Wrong message type
             }

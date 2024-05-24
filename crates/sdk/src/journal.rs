@@ -3,7 +3,7 @@ use bytes::Bytes;
 use dashmap::DashMap;
 use futures_util::task::waker;
 use restate_sdk_types::{
-    protocol::{self, Message, INPUT_ENTRY_MESSAGE_TYPE},
+    journal::{Entry, EntryResult, InputEntry},
     service_protocol::{
         call_entry_message, completion_message, CompletionMessage, EntryAckMessage, InputEntryMessage,
     },
@@ -20,7 +20,7 @@ pub enum NewExecutionState {
 
 #[derive(Debug, Clone)]
 pub struct JournalEntry {
-    pub message: Message,
+    pub message: Entry,
     pub waker: Option<Waker>,
 }
 
@@ -44,24 +44,21 @@ impl Journal {
             // The First message of replay entries needs to be InputStreamMessage
         } else {
             let input_message = journal.invocation.replay_entries.get(&0).unwrap().clone();
-            match input_message.message {
-                Message::InputEntryMessage(_, input_message) => {
-                    journal.handle_input_message(input_message);
-                }
-                _ => {
-                    // Error should be input message
-                }
+            if let Entry::Input(input) = input_message {
+                journal.handle_input_message(input);
+            } else {
+                // Error should be input message
             }
         }
         journal
     }
 
-    fn handle_input_message(&mut self, message: InputEntryMessage) {
+    fn handle_input_message(&mut self, input: InputEntry) {
         if self.invocation.nb_entries_to_replay == 1 {
             self.transition_state(NewExecutionState::PROCESSING);
         }
         self.pending_entries.insert(0, JournalEntry {
-            message: Message::InputEntryMessage(INPUT_ENTRY_MESSAGE_TYPE, message),
+            message: Entry::Input(input),
             waker: None,
         });
     }
@@ -92,7 +89,7 @@ impl Journal {
     pub fn handle_user_code_message(
         &mut self,
         entry_index: u32,
-        message: Message,
+        message: Entry,
         waker: Waker,
     ) -> Option<Bytes> {
         if entry_index != self.get_user_code_journal_index() {
@@ -106,7 +103,7 @@ impl Journal {
                             message,
                             waker: Some(waker),
                         };
-                        let replay_message = replay_entry.message.clone();
+                        let replay_message = replay_entry.clone();
                         return self.handle_replay(entry_index, replay_message, journal_entry);
                     } else {
                         // Illegal
@@ -119,61 +116,57 @@ impl Journal {
         None
     }
 
-    fn handle_replay(&self, entry_index: u32, replay_message: Message, entry: JournalEntry) -> Option<Bytes> {
-        match replay_message {
-            Message::AwakeableEntryMessage(_, _) => {}
-            Message::OneWayCallEntryMessage(_, _) => {}
-            Message::ClearStateEntryMessage(_, _) => {}
-            Message::ClearAllStateEntryMessage(_, _) => {}
-            Message::CompleteAwakeableEntryMessage(_, _) => {}
-            Message::CompletionMessage(_, _) => {}
-            Message::EntryAckMessage(_, _) => {}
-            Message::ErrorMessage(_, _) => {}
-            Message::EndMessage(_, _) => {}
-            Message::GetStateEntryMessage(_, _) => {}
-            Message::GetStateKeysEntryMessage(_, _) => {}
-            Message::CallEntryMessage(_, call) => {
+    fn handle_replay(&self, entry_index: u32, replay_entry: Entry, entry: JournalEntry) -> Option<Bytes> {
+        match replay_entry {
+            Entry::Input(_) => {}
+            Entry::Output(_) => {}
+            Entry::GetState(_) => {}
+            Entry::SetState(_) => {}
+            Entry::ClearState(_) => {}
+            Entry::GetStateKeys(_) => {}
+            Entry::ClearAllState => {}
+            Entry::GetPromise(_) => {}
+            Entry::PeekPromise(_) => {}
+            Entry::CompletePromise(_) => {}
+            Entry::Sleep(_) => {}
+            Entry::Call(call) => {
                 if let Some(result) = call.result {
                     match result {
-                        call_entry_message::Result::Value(value) => return Some(value),
-                        call_entry_message::Result::Failure(v) => {}
+                        EntryResult::Success(value) => return Some(value),
+                        EntryResult::Failure(code, value) => {}
                     }
                 }
             }
-            Message::OutputEntryMessage(_, _) => {}
-            Message::InputEntryMessage(_, _) => {}
-            Message::SetStateEntryMessage(_, _) => {}
-            Message::SleepEntryMessage(_, _) => {}
-            Message::StartMessage(_, _) => {}
-            Message::SuspensionMessage(_, _) => {}
-            Message::RunEntryMessage(_, _) => {}
+            Entry::OneWayCall(_) => {}
+            Entry::Awakeable(_) => {}
+            Entry::CompleteAwakeable(_) => {}
+            Entry::Run(_) => {}
+            Entry::Custom(_) => {}
         }
         None
     }
 
-    fn handle_processing(&self, entry_index: u32, message: Message, waker: Waker) {
+    fn handle_processing(&self, entry_index: u32, message: Entry, waker: Waker) {
         match message {
-            Message::AwakeableEntryMessage(_, _) => {}
-            Message::OneWayCallEntryMessage(_, _) => {}
-            Message::ClearStateEntryMessage(_, _) => {}
-            Message::ClearAllStateEntryMessage(_, _) => {}
-            Message::CompleteAwakeableEntryMessage(_, _) => {}
-            Message::CompletionMessage(_, _) => {}
-            Message::EntryAckMessage(_, _) => {}
-            Message::ErrorMessage(_, _) => {}
-            Message::EndMessage(_, _) => {}
-            Message::GetStateEntryMessage(_, _) => {}
-            Message::GetStateKeysEntryMessage(_, _) => {}
-            message @ Message::CallEntryMessage(_, _) => {
-                self.append_entry(message, waker);
+            Entry::Input(_) => {}
+            Entry::Output(_) => {}
+            Entry::GetState(_) => {}
+            Entry::SetState(_) => {}
+            Entry::ClearState(_) => {}
+            Entry::GetStateKeys(_) => {}
+            Entry::ClearAllState => {}
+            Entry::GetPromise(_) => {}
+            Entry::PeekPromise(_) => {}
+            Entry::CompletePromise(_) => {}
+            Entry::Sleep(_) => {}
+            entry @ Entry::Call(_) => {
+                self.append_entry(entry, waker);
             }
-            Message::OutputEntryMessage(_, _) => {}
-            Message::InputEntryMessage(_, _) => {}
-            Message::SetStateEntryMessage(_, _) => {}
-            Message::SleepEntryMessage(_, _) => {}
-            Message::StartMessage(_, _) => {}
-            Message::SuspensionMessage(_, _) => {}
-            Message::RunEntryMessage(_, _) => {}
+            Entry::OneWayCall(_) => {}
+            Entry::Awakeable(_) => {}
+            Entry::CompleteAwakeable(_) => {}
+            Entry::Run(_) => {}
+            Entry::Custom(_) => {}
         }
     }
 
@@ -208,7 +201,7 @@ impl Journal {
         }
     }
 
-    pub fn append_entry(&self, message: Message, waker: Waker) {
+    pub fn append_entry(&self, message: Entry, waker: Waker) {
         self.pending_entries
             .insert(self.user_code_journal_index, JournalEntry {
                 message,

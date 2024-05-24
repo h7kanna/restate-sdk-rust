@@ -9,6 +9,7 @@ mod io;
 mod journal;
 mod logger;
 mod machine;
+mod protocol;
 mod store;
 mod syscall;
 

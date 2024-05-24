@@ -7,19 +7,13 @@ use http::Request;
 use http_body::Frame;
 use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
 use prost::Message;
-use restate_sdk_types::{
-    protocol,
-    service_protocol::{EndMessage, ServiceProtocolVersion},
-};
-use restate_service_protocol::{
-    codec::ProtobufRawEntryCodec,
-    message::{Decoder, Encoder, MessageHeader, ProtocolMessage},
-};
+use restate_sdk_types::service_protocol::ServiceProtocolVersion;
+use restate_service_protocol::message::{Decoder, Encoder, MessageHeader, ProtocolMessage};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 pub trait RestateStreamConsumer: Send {
-    fn handle(&mut self, message: restate_sdk_types::Message) -> bool;
+    fn handle(&mut self, message: (MessageHeader, ProtocolMessage)) -> bool;
 }
 
 pub trait MessageStreamer: Send {
@@ -96,22 +90,7 @@ impl MessageStreamer for Http2Connection {
         // Setup inbound message consumer
         loop {
             if let Some((header, message)) = self.inbound_rx.recv().await {
-                match message {
-                    ProtocolMessage::UnparsedEntry(raw_entry) => {
-                        let expected_entry = raw_entry
-                            .deserialize_entry_ref::<ProtobufRawEntryCodec>()
-                            .unwrap();
-                        println!("Entry received {:?}", expected_entry);
-                    }
-                    _ => {}
-                }
-                let message = restate_sdk_types::Message {
-                    message_type: 0,
-                    message: protocol::Message::EndMessage(1, EndMessage {}),
-                    completed: false,
-                    requires_ack: None,
-                };
-                if !consumer.handle(message) {
+                if !consumer.handle((header, message)) {
                     continue;
                 }
             }

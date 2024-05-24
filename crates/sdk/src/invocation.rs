@@ -2,9 +2,12 @@ use crate::{connection::RestateStreamConsumer, store::LocalStore};
 use bytes::Bytes;
 use dashmap::DashMap;
 use restate_sdk_types::{
-    protocol,
-    service_protocol::{InputEntryMessage, StartMessage},
-    Message,
+    journal::{Entry, InputEntry},
+    service_protocol::StartMessage,
+};
+use restate_service_protocol::{
+    codec::ProtobufRawEntryCodec,
+    message::{MessageHeader, MessageType, ProtocolMessage},
 };
 use std::cmp::PartialEq;
 
@@ -18,13 +21,13 @@ enum State {
 
 pub(crate) struct Invocation {
     pub nb_entries_to_replay: u32,
-    pub replay_entries: DashMap<u32, Message>,
+    pub replay_entries: DashMap<u32, Entry>,
 }
 
 pub(crate) struct InvocationBuilder {
     state: State,
     runtime_replay_index: u32,
-    replay_entries: DashMap<u32, Message>,
+    replay_entries: DashMap<u32, Entry>,
     id: Option<Bytes>,
     debug_id: Option<String>,
     nb_entries_to_replay: u32,
@@ -57,12 +60,23 @@ impl InvocationBuilder {
         self.user_key = Some(message.key)
     }
 
-    fn handle_input_message(&mut self, message: InputEntryMessage) {
+    fn handle_input_message(&mut self, message: InputEntry) {
         self.invocation_value = Some(message.value);
     }
 
-    fn append_replay_entry(&mut self, message: Message) {
-        self.replay_entries.insert(self.runtime_replay_index, message);
+    fn deserialize_entry(&mut self, message: ProtocolMessage) -> Option<Entry> {
+        if let ProtocolMessage::UnparsedEntry(raw_entry) = message {
+            let expected_entry = raw_entry.deserialize_entry_ref::<ProtobufRawEntryCodec>();
+            println!("Entry received {:?}", expected_entry);
+            //TODO: Handle error
+            Some(expected_entry.unwrap())
+        } else {
+            None
+        }
+    }
+
+    fn append_replay_entry(&mut self, entry: Entry) {
+        self.replay_entries.insert(self.runtime_replay_index, entry);
         self.runtime_replay_index += 1;
     }
 
@@ -80,16 +94,16 @@ impl InvocationBuilder {
         }
     }
 
-    fn check_state(&self, state: State, expected: u16, message: &Message) {}
+    fn check_state(&self, state: State, expected: MessageType, message: &ProtocolMessage) {}
 }
 
 impl RestateStreamConsumer for &mut InvocationBuilder {
-    fn handle(&mut self, message: Message) -> bool {
+    fn handle(&mut self, message: (MessageHeader, ProtocolMessage)) -> bool {
         match self.state {
             State::ExpectingStart => {
-                self.check_state(self.state, message.message_type, &message);
-                match message.message {
-                    protocol::Message::StartMessage(_, start_message) => {
+                self.check_state(self.state, message.0.message_type(), &message.1);
+                match message.1 {
+                    ProtocolMessage::Start(start_message) => {
                         self.handle_start_message(start_message);
                     }
                     _ => {
@@ -98,19 +112,19 @@ impl RestateStreamConsumer for &mut InvocationBuilder {
                 }
             }
             State::ExpectingInput => {
-                self.check_state(self.state, message.message_type, &message);
-                match &message.message {
-                    protocol::Message::InputEntryMessage(_, input_message) => {
-                        self.handle_input_message(input_message.clone());
+                self.check_state(self.state, message.0.message_type(), &message.1);
+                let entry = self.deserialize_entry(message.1).unwrap();
+                match &entry {
+                    Entry::Input(input) => {
+                        self.handle_input_message(input.clone());
                     }
-                    _ => {
-                        // Invalid
-                    }
+                    _ => {}
                 }
-                self.append_replay_entry(message);
+                self.append_replay_entry(entry);
             }
             State::ExpectingFurtherReplay => {
-                self.append_replay_entry(message);
+                let entry = self.deserialize_entry(message.1).unwrap();
+                self.append_replay_entry(entry);
             }
             State::Complete => {
                 // Error

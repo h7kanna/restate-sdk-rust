@@ -1,7 +1,7 @@
 use crate::{machine::StateMachine, syscall::CallService};
 use bytes::Bytes;
 use parking_lot::Mutex;
-use restate_sdk_types::service_protocol::CallEntryMessage;
+use restate_sdk_types::journal::{InvokeEntry, InvokeRequest};
 use serde::{Deserialize, Serialize};
 use std::{future::Future, sync::Arc};
 
@@ -47,18 +47,19 @@ impl RestateContext {
     {
         async move {
             let bytes = CallService::<String>::new(
-                CallEntryMessage {
-                    service_name,
-                    handler_name,
-                    parameter: Bytes::new(),
-                    headers: vec![],
-                    key: "".to_string(),
-                    name: "".to_string(),
+                InvokeEntry {
+                    request: InvokeRequest {
+                        service_name: service_name.into(),
+                        handler_name: handler_name.into(),
+                        parameter: Bytes::new(),
+                        key: Default::default(),
+                    },
                     result: None,
                 },
                 self.state_machine.clone(),
             )
             .await;
+
             // If the system call is completed, deserialize the result and return
             let bytes = bytes.to_vec();
             let result: R = serde_json::from_slice(&bytes).unwrap();

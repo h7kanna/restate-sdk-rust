@@ -1,10 +1,8 @@
 use crate::machine::StateMachine;
 use bytes::Bytes;
 use parking_lot::Mutex;
-use restate_sdk_types::{
-    protocol::{Message, INVOKE_ENTRY_MESSAGE_TYPE},
-    service_protocol::CallEntryMessage,
-};
+use prost::Message;
+use restate_sdk_types::journal::{Entry, InvokeEntry};
 use std::{
     future::Future,
     marker::PhantomData,
@@ -15,17 +13,17 @@ use std::{
 
 pub struct CallService<T> {
     entry_index: u32,
-    call_message: CallEntryMessage,
+    invoke_entry: InvokeEntry,
     state_machine: Arc<Mutex<StateMachine>>,
     _ret: PhantomData<T>,
 }
 
 impl<T> CallService<T> {
-    pub fn new(call_message: CallEntryMessage, state_machine: Arc<Mutex<StateMachine>>) -> Self {
+    pub fn new(invoke_entry: InvokeEntry, state_machine: Arc<Mutex<StateMachine>>) -> Self {
         let entry_index = state_machine.lock().get_next_user_code_journal_index();
         Self {
             entry_index,
-            call_message,
+            invoke_entry,
             state_machine,
             _ret: PhantomData,
         }
@@ -38,7 +36,7 @@ impl<T> Future for CallService<T> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(result) = self.state_machine.lock().handle_user_code_message(
             self.entry_index,
-            Message::CallEntryMessage(INVOKE_ENTRY_MESSAGE_TYPE, self.call_message.clone()),
+            Entry::Call(self.invoke_entry.clone()),
             cx.waker().clone(),
         ) {
             println!("Result ready");

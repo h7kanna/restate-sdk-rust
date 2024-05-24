@@ -65,23 +65,16 @@ mod http2_handler {
             connection::{Connection, RestateStreamConsumer},
             context::RestateContext,
         };
-        use restate_sdk_types::{
-            protocol::{
-                Message::{CallEntryMessage, InputEntryMessage, StartMessage},
-                INPUT_ENTRY_MESSAGE_TYPE, INVOKE_ENTRY_MESSAGE_TYPE, START_MESSAGE_TYPE,
-            },
-            service_protocol::call_entry_message,
-            Message,
-        };
-        use restate_service_protocol::message::ProtocolMessage;
+        use restate_sdk_types::service_protocol::call_entry_message;
+        use restate_service_protocol::message::{MessageHeader, ProtocolMessage};
         use std::time::Duration;
         use tokio::sync::mpsc::{channel, UnboundedSender};
         use tokio_util::sync::CancellationToken;
         use tracing_test::traced_test;
 
         struct TestDriver {
-            input_messages: Vec<Message>,
-            output_messages: UnboundedSender<Message>,
+            input_messages: Vec<(MessageHeader, ProtocolMessage)>,
+            output_messages: UnboundedSender<(MessageHeader, ProtocolMessage)>,
         }
 
         impl MessageStreamer for TestDriver {
@@ -107,6 +100,7 @@ mod http2_handler {
 
             let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel();
             let connection = TestDriver {
+                /*
                 input_messages: vec![
                     Message {
                         message_type: START_MESSAGE_TYPE,
@@ -157,6 +151,9 @@ mod http2_handler {
                         requires_ack: None,
                     },
                 ],
+
+                 */
+                input_messages: vec![],
                 output_messages: output_tx,
             };
 
