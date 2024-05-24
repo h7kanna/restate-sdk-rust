@@ -1,0 +1,16 @@
+[package]
+name = "restate"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = { workspace = true }
+
+[features]
+default = []
+tokio = []
+derive = ["restate-sdk-derive"]
+
+[dependencies]
+restate-sdk-core = { version = "0.1.0", path = "../core" }
+restate-sdk-derive = { version = "0.1.0", path = "../derive", optional = true }
+restate-sdk = { version = "0.1.0", path = "../sdk" }
