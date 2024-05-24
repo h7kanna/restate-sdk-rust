@@ -1,8 +1,7 @@
 //! Restate Rust SDK
 
 mod combinators;
-// TODO: Remove this pub
-pub mod connection;
+mod connection;
 mod errors;
 mod invocation;
 mod journal;

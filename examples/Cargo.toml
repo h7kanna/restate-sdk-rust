@@ -16,22 +16,11 @@ default = []
 
 [dependencies]
 anyhow = { workspace = true }
-bytes = { workspace = true }
-futures-util = { workspace = true }
-http-body-util = { workspace = true }
-hyper = { workspace = true }
-hyper-util = { workspace = true }
-pin-project-lite = { workspace = true }
-prost = { workspace = true }
 restate-sdk = { version = "0.1.0", path = "../crates/sdk" }
 restate-sdk-types = { version = "0.1.0", path = "../crates/types" }
 restate-service-protocol = { version = "0.1.0", path = "../crates/service-protocol" }
-serde = { workspace = true }
 tokio = { version = "1", features = ["full"] }
-tokio-stream = "0.1.15"
-tokio-util = { version = "0.7.11", features = ["full"] }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["parking_lot", "env-filter", "registry"] }
-uuid = { version = "1.8.0", features = ["v4"] }
