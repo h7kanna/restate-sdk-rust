@@ -98,10 +98,10 @@ impl InvocationBuilder {
 }
 
 impl RestateStreamConsumer for &mut InvocationBuilder {
-    fn handle(&mut self, message: (MessageHeader, ProtocolMessage)) -> bool {
+    fn handle(&mut self, message: (MessageType, ProtocolMessage)) -> bool {
         match self.state {
             State::ExpectingStart => {
-                self.check_state(self.state, message.0.message_type(), &message.1);
+                self.check_state(self.state, message.0, &message.1);
                 match message.1 {
                     ProtocolMessage::Start(start_message) => {
                         self.handle_start_message(start_message);
@@ -112,7 +112,7 @@ impl RestateStreamConsumer for &mut InvocationBuilder {
                 }
             }
             State::ExpectingInput => {
-                self.check_state(self.state, message.0.message_type(), &message.1);
+                self.check_state(self.state, message.0, &message.1);
                 let entry = self.deserialize_entry(message.1).unwrap();
                 match &entry {
                     Entry::Input(input) => {

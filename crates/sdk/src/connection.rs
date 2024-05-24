@@ -8,12 +8,12 @@ use http_body::Frame;
 use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
 use prost::Message;
 use restate_sdk_types::service_protocol::ServiceProtocolVersion;
-use restate_service_protocol::message::{Decoder, Encoder, MessageHeader, ProtocolMessage};
+use restate_service_protocol::message::{Decoder, Encoder, MessageType, ProtocolMessage};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 pub trait RestateStreamConsumer: Send {
-    fn handle(&mut self, message: (MessageHeader, ProtocolMessage)) -> bool;
+    fn handle(&mut self, message: (MessageType, ProtocolMessage)) -> bool;
 }
 
 pub trait MessageStreamer: Send {
@@ -26,7 +26,7 @@ pub trait Connection: Send {
 }
 
 pub struct Http2Connection {
-    inbound_rx: UnboundedReceiver<(MessageHeader, ProtocolMessage)>,
+    inbound_rx: UnboundedReceiver<(MessageType, ProtocolMessage)>,
     outbound_tx: UnboundedSender<ProtocolMessage>,
 }
 
@@ -52,7 +52,7 @@ impl Http2Connection {
                         Ok(result) => {
                             if let Some((header, message)) = result {
                                 println!("Header: {:?}, Message: {:?}", header, message);
-                                if let Err(err) = inbound_tx.send((header, message)) {
+                                if let Err(err) = inbound_tx.send((header.message_type(), message)) {
                                     println!("Send failed {}", err);
                                 }
                             }

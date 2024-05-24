@@ -65,16 +65,20 @@ mod http2_handler {
             connection::{Connection, RestateStreamConsumer},
             context::RestateContext,
         };
-        use restate_sdk_types::service_protocol::call_entry_message;
-        use restate_service_protocol::message::{MessageHeader, ProtocolMessage};
+        use prost::Message;
+        use restate_sdk_types::{
+            journal::raw::{PlainEntryHeader, PlainRawEntry},
+            service_protocol::call_entry_message,
+        };
+        use restate_service_protocol::message::{MessageType, ProtocolMessage};
         use std::time::Duration;
         use tokio::sync::mpsc::{channel, UnboundedSender};
         use tokio_util::sync::CancellationToken;
         use tracing_test::traced_test;
 
         struct TestDriver {
-            input_messages: Vec<(MessageHeader, ProtocolMessage)>,
-            output_messages: UnboundedSender<(MessageHeader, ProtocolMessage)>,
+            input_messages: Vec<(MessageType, ProtocolMessage)>,
+            output_messages: UnboundedSender<ProtocolMessage>,
         }
 
         impl MessageStreamer for TestDriver {
@@ -87,7 +91,7 @@ mod http2_handler {
 
         impl Connection for TestDriver {
             fn send(&mut self, message: ProtocolMessage) {
-                //self.output_messages.send(message).unwrap();
+                self.output_messages.send(message).unwrap();
             }
         }
 
@@ -100,41 +104,39 @@ mod http2_handler {
 
             let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel();
             let connection = TestDriver {
-                /*
                 input_messages: vec![
-                    Message {
-                        message_type: START_MESSAGE_TYPE,
-                        message: StartMessage(
-                            START_MESSAGE_TYPE,
-                            restate_sdk_types::service_protocol::StartMessage {
-                                id: Default::default(),
-                                debug_id: "".to_string(),
-                                known_entries: 2,
-                                state_map: vec![],
-                                partial_state: false,
-                                key: "".to_string(),
-                            },
-                        ),
-                        completed: false,
-                        requires_ack: None,
-                    },
-                    Message {
-                        message_type: INPUT_ENTRY_MESSAGE_TYPE,
-                        message: InputEntryMessage(
-                            INPUT_ENTRY_MESSAGE_TYPE,
+                    (
+                        MessageType::Start,
+                        ProtocolMessage::Start(restate_sdk_types::service_protocol::StartMessage {
+                            id: Default::default(),
+                            debug_id: "".to_string(),
+                            known_entries: 2,
+                            state_map: vec![],
+                            partial_state: false,
+                            key: "".to_string(),
+                        }),
+                    ),
+                    (
+                        MessageType::InputEntry,
+                        PlainRawEntry::new(
+                            PlainEntryHeader::Input,
                             restate_sdk_types::service_protocol::InputEntryMessage {
                                 headers: vec![],
-                                value: Default::default(),
+                                value: "{\"input\":\"test\"}".into(),
                                 name: "".to_string(),
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    ),
+                    (
+                        MessageType::InvokeEntry,
+                        PlainRawEntry::new(
+                            PlainEntryHeader::Call {
+                                is_completed: false,
+                                enrichment_result: None,
                             },
-                        ),
-                        completed: false,
-                        requires_ack: None,
-                    },
-                    Message {
-                        message_type: INVOKE_ENTRY_MESSAGE_TYPE,
-                        message: CallEntryMessage(
-                            INVOKE_ENTRY_MESSAGE_TYPE,
                             restate_sdk_types::service_protocol::CallEntryMessage {
                                 service_name: "".to_string(),
                                 handler_name: "".to_string(),
@@ -145,15 +147,13 @@ mod http2_handler {
                                 result: Some(call_entry_message::Result::Value(
                                     "{\"test\":\"harsha\"}".into(),
                                 )),
-                            },
-                        ),
-                        completed: false,
-                        requires_ack: None,
-                    },
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    ),
                 ],
-
-                 */
-                input_messages: vec![],
                 output_messages: output_tx,
             };
 

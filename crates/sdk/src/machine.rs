@@ -16,7 +16,7 @@ use restate_sdk_types::{
     },
     service_protocol,
 };
-use restate_service_protocol::message::{MessageHeader, MessageType, ProtocolMessage};
+use restate_service_protocol::message::{MessageType, ProtocolMessage};
 use serde::{Deserialize, Serialize};
 use std::{future::Future, sync::Arc, task::Waker};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
@@ -114,14 +114,14 @@ impl StateMachine {
 }
 
 impl RestateStreamConsumer for &mut StateMachine {
-    fn handle(&mut self, message: (MessageHeader, ProtocolMessage)) -> bool {
-        if message.0.message_type() == MessageType::Completion {
+    fn handle(&mut self, message: (MessageType, ProtocolMessage)) -> bool {
+        if message.0 == MessageType::Completion {
             if let ProtocolMessage::Completion(message) = message.1 {
                 self.journal.handle_runtime_completion_message(message);
             } else {
                 // Wrong message type
             }
-        } else if message.0.message_type() == MessageType::EntryAck {
+        } else if message.0 == MessageType::EntryAck {
             if let ProtocolMessage::EntryAck(message) = message.1 {
             } else {
                 // Wrong message type
