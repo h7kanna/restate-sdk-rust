@@ -1,23 +1,18 @@
 #![deny(warnings)]
 
-use anyhow::anyhow;
 use bytes::Bytes;
-use futures_util::{pin_mut, StreamExt};
-use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full, StreamBody};
-use hyper::{
-    body::Frame, server::conn::http2, service::service_fn, Method, Request, Response, Result, StatusCode,
-};
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+use hyper::{server::conn::http2, service::service_fn, Method, Request, Response, Result, StatusCode};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use prost::Message;
+use restate_sdk::connection::{Connection, Http2Connection};
 use restate_sdk_types::{
     journal::raw::{PlainEntryHeader, RawEntry},
     service_protocol,
-    service_protocol::ServiceProtocolVersion,
 };
-use restate_service_protocol::message::{Decoder, Encoder, ProtocolMessage};
+use restate_service_protocol::message::ProtocolMessage;
 use std::{net::SocketAddr, time::Duration};
 use tokio::net::TcpListener;
-use tokio_stream::wrappers::UnboundedReceiverStream;
 
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -87,40 +82,8 @@ async fn service(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody
                 println!("{:?}, {:?}", name, header);
             }
 
-            let frame_stream = http_body_util::BodyStream::new(
-                req.into_body()
-                    .map_frame(move |frame| frame)
-                    .map_err(|_e| anyhow!("error"))
-                    .boxed(),
-            );
+            let (mut http2conn, boxed_body) = Http2Connection::new(req);
 
-            tokio::spawn(async move {
-                let mut decoder = Decoder::new(ServiceProtocolVersion::V1, usize::MAX, None);
-                pin_mut!(frame_stream);
-                while let Some(Ok(frame)) = frame_stream.next().await {
-                    if let Ok(data) = frame.into_data() {
-                        decoder.push(data);
-                        match decoder.consume_next() {
-                            Ok(result) => {
-                                if let Some((header, message)) = result {
-                                    println!("Header: {:?}, Message: {:?}", header, message);
-                                }
-                            }
-                            Err(err) => {
-                                println!("decode error: {:?}", err);
-                            }
-                        }
-                    };
-                }
-            });
-
-
-            let (message_tx, message_rx) = tokio::sync::mpsc::unbounded_channel();
-            let message_stream = UnboundedReceiverStream::new(message_rx);
-            let stream_body = StreamBody::new(message_stream);
-            let boxed_body = BodyExt::boxed(stream_body);
-
-            let encoder = Encoder::new(ServiceProtocolVersion::V1);
             tokio::spawn(async move {
                 //tokio::time::sleep(Duration::from_secs(5)).await;
                 let result = service_protocol::OutputEntryMessage {
@@ -129,14 +92,12 @@ async fn service(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody
                         Bytes::from("success3"),
                     )),
                 };
-                let output = encoder.encode(ProtocolMessage::UnparsedEntry(RawEntry::new(
+                http2conn.send(ProtocolMessage::UnparsedEntry(RawEntry::new(
                     PlainEntryHeader::Output,
                     result.encode_to_vec().into(),
                 )));
-                message_tx.send(Ok(Frame::data(output))).unwrap();
 
-                let end = encoder.encode(ProtocolMessage::End(service_protocol::EndMessage {}));
-                message_tx.send(Ok(Frame::data(end))).unwrap();
+                http2conn.send(ProtocolMessage::End(service_protocol::EndMessage {}));
                 tokio::time::sleep(Duration::from_secs(2)).await;
             });
 
@@ -155,39 +116,8 @@ async fn service(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody
                 println!("{:?}, {:?}", name, header);
             }
 
-            let frame_stream = http_body_util::BodyStream::new(
-                req.into_body()
-                    .map_frame(move |frame| frame)
-                    .map_err(|_e| anyhow!("error"))
-                    .boxed(),
-            );
+            let (mut http2conn, boxed_body) = Http2Connection::new(req);
 
-            tokio::spawn(async move {
-                let mut decoder = Decoder::new(ServiceProtocolVersion::V1, usize::MAX, None);
-                pin_mut!(frame_stream);
-                while let Some(Ok(frame)) = frame_stream.next().await {
-                    if let Ok(data) = frame.into_data() {
-                        decoder.push(data);
-                        match decoder.consume_next() {
-                            Ok(result) => {
-                                if let Some((header, message)) = result {
-                                    println!("Header: {:?}, Message: {:?}", header, message);
-                                }
-                            }
-                            Err(err) => {
-                                println!("decode error: {:?}", err);
-                            }
-                        }
-                    };
-                }
-            });
-
-            let (message_tx, message_rx) = tokio::sync::mpsc::unbounded_channel();
-            let message_stream = UnboundedReceiverStream::new(message_rx);
-            let stream_body = StreamBody::new(message_stream);
-            let boxed_body = BodyExt::boxed(stream_body);
-
-            let encoder = Encoder::new(ServiceProtocolVersion::V1);
             tokio::spawn(async move {
                 tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -201,14 +131,13 @@ async fn service(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody
                     result: None,
                 };
 
-                let call = encoder.encode(ProtocolMessage::UnparsedEntry(RawEntry::new(
+                http2conn.send(ProtocolMessage::UnparsedEntry(RawEntry::new(
                     PlainEntryHeader::Call {
                         is_completed: false,
                         enrichment_result: None,
                     },
                     result.encode_to_vec().into(),
                 )));
-                message_tx.send(Ok(Frame::data(call))).unwrap();
 
                 tokio::time::sleep(Duration::from_secs(10)).await;
 
@@ -219,14 +148,12 @@ async fn service(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody
                     )),
                 };
 
-                let output = encoder.encode(ProtocolMessage::UnparsedEntry(RawEntry::new(
+                http2conn.send(ProtocolMessage::UnparsedEntry(RawEntry::new(
                     PlainEntryHeader::Output,
                     result.encode_to_vec().into(),
                 )));
-                message_tx.send(Ok(Frame::data(output))).unwrap();
 
-                let end = encoder.encode(ProtocolMessage::End(service_protocol::EndMessage {}));
-                message_tx.send(Ok(Frame::data(end))).unwrap();
+                http2conn.send(ProtocolMessage::End(service_protocol::EndMessage {}));
                 tokio::time::sleep(Duration::from_secs(10)).await;
             });
 

@@ -109,7 +109,7 @@ impl StateMachine {
     }
 
     fn send(&mut self, message: Message) {
-        self.connection.send(message);
+        //self.connection.send(message);
     }
 
     fn hit_suspension(&self) {

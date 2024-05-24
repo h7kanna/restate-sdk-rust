@@ -73,6 +73,7 @@ mod http2_handler {
             service_protocol::call_entry_message,
             Message,
         };
+        use restate_service_protocol::message::ProtocolMessage;
         use std::time::Duration;
         use tokio::sync::mpsc::{channel, UnboundedSender};
         use tokio_util::sync::CancellationToken;
@@ -92,8 +93,8 @@ mod http2_handler {
         }
 
         impl Connection for TestDriver {
-            fn send(&mut self, message: Message) {
-                self.output_messages.send(message).unwrap();
+            fn send(&mut self, message: ProtocolMessage) {
+                //self.output_messages.send(message).unwrap();
             }
         }
 

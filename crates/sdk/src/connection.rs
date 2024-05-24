@@ -25,7 +25,7 @@ pub trait MessageStreamer: Send {
 
 #[async_trait]
 pub trait Connection: Send {
-    fn send(&mut self, message: restate_sdk_types::Message);
+    fn send(&mut self, message: ProtocolMessage);
 }
 
 pub struct Http2Connection {
@@ -108,11 +108,10 @@ impl MessageStreamer for Http2Connection {
 }
 
 impl Connection for Http2Connection {
-    fn send(&mut self, message: restate_sdk_types::Message) {
-        /*
+    fn send(&mut self, message: ProtocolMessage) {
         if let Err(err) = self.outbound_tx.send(message) {
-
-        }*/
+            println!("Outbound send error: {}", err);
+        }
     }
 }
 
