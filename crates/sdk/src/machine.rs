@@ -147,7 +147,6 @@ impl RestateStreamConsumer for &mut StateMachine {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 

@@ -78,19 +78,7 @@ impl Service {
     #[async_recursion]
     async fn service(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
         println!("I'm here ---------> {:?}", name);
-        //let output = ctx.service_fn(name.clone()).await;
-        //let output = ctx.greet(name.clone()).await?;
-
-        let output = ctx
-            .invoke(
-                Self::greet,
-                "Greeter".to_string(),
-                "greet2".to_string(),
-                name,
-                None,
-            )
-            .await?;
-
+        let output = ctx.greet(name.clone()).await?;
         Ok(ExecOutput { test: output.test })
     }
 
@@ -110,17 +98,31 @@ impl ServiceHandler for Service {
 }
 
 trait ServiceExt {
-    async fn service(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
-    async fn greet(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
+    async fn service(&self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
+    async fn greet(&self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
 }
 
 impl ServiceExt for Context {
-    async fn service(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-        Service::service(self, name).await
+    async fn service(&self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+        self.invoke(
+            Service::service,
+            "Greeter".to_string(),
+            "greet".to_string(),
+            name,
+            None,
+        )
+        .await
     }
 
-    async fn greet(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-        Service::greet(self, name).await
+    async fn greet(&self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+        self.invoke(
+            Service::greet,
+            "Greeter".to_string(),
+            "greet2".to_string(),
+            name,
+            None,
+        )
+        .await
     }
 }
 
