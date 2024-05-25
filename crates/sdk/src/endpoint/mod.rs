@@ -14,27 +14,36 @@ use tokio::net::TcpListener;
 
 mod http2_handler;
 
-pub struct RestateEndpoint {}
+pub struct RestateEndpoint {
+
+}
+
+impl RestateEndpoint {
+    pub async fn listen(self) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+
+        let listener = TcpListener::bind(addr).await?;
+        println!("Listening on http://{}", addr);
+        loop {
+            let (stream, _) = listener.accept().await?;
+            let io = TokioIo::new(stream);
+
+            let executor = TokioExecutor::new();
+            tokio::task::spawn(async move {
+                if let Err(err) = http2::Builder::new(executor)
+                    .serve_connection(io, service_fn(service))
+                    .await
+                {
+                    println!("Error serving connection: {:?}", err);
+                }
+            });
+        }
+    }
+}
 
 pub async fn endpoint() -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-
-    let listener = TcpListener::bind(addr).await?;
-    println!("Listening on http://{}", addr);
-    loop {
-        let (stream, _) = listener.accept().await?;
-        let io = TokioIo::new(stream);
-
-        let executor = TokioExecutor::new();
-        tokio::task::spawn(async move {
-            if let Err(err) = http2::Builder::new(executor)
-                .serve_connection(io, service_fn(service))
-                .await
-            {
-                println!("Error serving connection: {:?}", err);
-            }
-        });
-    }
+    let endpoint = RestateEndpoint{};
+    endpoint.listen().await
 }
 
 async fn service(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody<Bytes, anyhow::Error>>> {

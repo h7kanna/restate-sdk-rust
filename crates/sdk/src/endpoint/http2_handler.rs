@@ -193,7 +193,7 @@ mod tests {
                 _ = token2.cancelled() => {
 
                 }
-                _ = handle_invocation(service_fn,connection) => {
+                _ = handle_invocation(service_fn, connection) => {
 
                 }
             }
