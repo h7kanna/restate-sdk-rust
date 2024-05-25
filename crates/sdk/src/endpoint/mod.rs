@@ -5,21 +5,29 @@ use hyper::{server::conn::http2, service::service_fn, Method, Request, Response,
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use prost::Message;
 use restate_sdk_types::{
-    journal::raw::{PlainEntryHeader, PlainRawEntry},
+    journal::{
+        raw::{PlainEntryHeader, PlainRawEntry},
+        OutputEntry,
+    },
     service_protocol,
 };
 use restate_service_protocol::message::ProtocolMessage;
-use std::{net::SocketAddr, time::Duration};
+use std::{future::Future, net::SocketAddr, time::Duration};
 use tokio::net::TcpListener;
 
-mod http2_handler;
+pub mod http2_handler;
 
-pub struct RestateEndpoint {
-
-}
+pub struct RestateEndpoint {}
 
 impl RestateEndpoint {
-    pub async fn listen(self) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn listen<H, F>(
+        self,
+        handler: H,
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>
+    where
+        H: Fn(Request<hyper::body::Incoming>) -> F + Send + Clone + 'static,
+        F: Future<Output = Result<Response<BoxBody<Bytes, anyhow::Error>>>> + Send + 'static,
+    {
         let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
 
         let listener = TcpListener::bind(addr).await?;
@@ -27,11 +35,11 @@ impl RestateEndpoint {
         loop {
             let (stream, _) = listener.accept().await?;
             let io = TokioIo::new(stream);
-
+            let handler = handler.clone();
             let executor = TokioExecutor::new();
             tokio::task::spawn(async move {
                 if let Err(err) = http2::Builder::new(executor)
-                    .serve_connection(io, service_fn(service))
+                    .serve_connection(io, service_fn(handler))
                     .await
                 {
                     println!("Error serving connection: {:?}", err);
@@ -41,9 +49,13 @@ impl RestateEndpoint {
     }
 }
 
-pub async fn endpoint() -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let endpoint = RestateEndpoint{};
-    endpoint.listen().await
+pub async fn endpoint<H, F>(handler: H) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>
+where
+    H: Fn(Request<hyper::body::Incoming>) -> F + Send + Clone + 'static,
+    F: Future<Output = Result<Response<BoxBody<Bytes, anyhow::Error>>>> + Send + 'static,
+{
+    let endpoint = RestateEndpoint {};
+    endpoint.listen(handler).await
 }
 
 async fn service(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody<Bytes, anyhow::Error>>> {
@@ -199,10 +211,10 @@ async fn service(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody
     }
 }
 
-fn empty() -> BoxBody<Bytes, hyper::Error> {
+pub fn empty() -> BoxBody<Bytes, hyper::Error> {
     Empty::<Bytes>::new().map_err(|never| match never {}).boxed()
 }
 
-fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
+pub fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
     Full::new(chunk.into()).map_err(|never| match never {}).boxed()
 }

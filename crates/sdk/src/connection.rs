@@ -20,8 +20,10 @@ pub trait MessageStreamer: Send {
     async fn pipe_to_consumer(&mut self, consumer: impl RestateStreamConsumer);
 }
 
+pub(crate) trait Sealed {}
+
 #[async_trait]
-pub trait Connection: Send {
+pub trait Connection: Sealed + Send {
     fn send(&mut self, message: ProtocolMessage);
 }
 
@@ -97,6 +99,8 @@ impl MessageStreamer for Http2Connection {
         }
     }
 }
+
+impl Sealed for Http2Connection {}
 
 impl Connection for Http2Connection {
     fn send(&mut self, message: ProtocolMessage) {

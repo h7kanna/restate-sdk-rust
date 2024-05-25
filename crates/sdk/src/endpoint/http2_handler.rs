@@ -100,6 +100,8 @@ mod tests {
         }
     }
 
+    impl crate::connection::Sealed for TestDriver {}
+
     impl Connection for TestDriver {
         fn send(&mut self, message: ProtocolMessage) {
             self.output_messages.send(message).unwrap();
