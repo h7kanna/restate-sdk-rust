@@ -29,7 +29,7 @@ fn endpoint_fn<T: ServiceHandler>(service: T) {
 #[restate::bundle]
 mod bundle {
     use super::ServiceHandler;
-    use restate::{async_recursion, Context, HttpIngress};
+    use restate::{async_recursion, Context};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,38 +53,6 @@ mod bundle {
         }
     }
 
-    trait SimpleServiceHandlerClient {
-        async fn greet(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
-    }
-
-    struct SimpleServiceClientImpl<'a> {
-        ctx: &'a Context,
-    }
-
-    impl<'a> SimpleServiceClientImpl<'a> {
-        async fn greet(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            self.ctx
-                .invoke(
-                    SimpleService::greet,
-                    "SimpleService".to_string(),
-                    "greet".to_string(),
-                    name,
-                    None,
-                )
-                .await
-        }
-    }
-
-    trait SimpleServiceClientExt {
-        fn simple_service_client(&self) -> SimpleServiceClientImpl;
-    }
-
-    impl SimpleServiceClientExt for Context {
-        fn simple_service_client(&self) -> SimpleServiceClientImpl {
-            SimpleServiceClientImpl { ctx: &self }
-        }
-    }
-
     #[restate::service]
     impl Service {
         const NAME: &'static str = "Service";
@@ -102,51 +70,6 @@ mod bundle {
         #[restate::handler]
         pub async fn greet(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             Ok(ExecOutput { test: name.test })
-        }
-    }
-
-    trait ServiceHandlerClient {
-        async fn service(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
-        async fn greet(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
-    }
-
-    struct ServiceClientImpl<'a> {
-        ctx: &'a Context,
-    }
-
-    impl<'a> ServiceClientImpl<'a> {
-        async fn service(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            self.ctx
-                .invoke(
-                    Service::service,
-                    "Service".to_string(),
-                    "service".to_string(),
-                    name,
-                    None,
-                )
-                .await
-        }
-
-        async fn greet(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            self.ctx
-                .invoke(
-                    Service::greet,
-                    "Service".to_string(),
-                    "greet".to_string(),
-                    name,
-                    None,
-                )
-                .await
-        }
-    }
-
-    trait ServiceClientExt {
-        fn service_client(&self) -> ServiceClientImpl;
-    }
-
-    impl ServiceClientExt for Context {
-        fn service_client(&self) -> ServiceClientImpl {
-            ServiceClientImpl { ctx: &self }
         }
     }
 }

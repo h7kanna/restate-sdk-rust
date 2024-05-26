@@ -1,12 +1,16 @@
 //! Restate Rust SDK Macros
 
-use proc_macro::TokenStream;
+use convert_case::{Case, Casing};
+use proc_macro::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use restate_sdk_types::endpoint_manifest::{
     Endpoint, Handler, HandlerName, HandlerType, ProtocolMode, Service, ServiceName, ServiceType,
 };
 use std::{fs::File, io::Write};
-use syn::{Attribute, Expr, ImplItem, Item, ItemFn, ItemImpl, Lit, Type};
+use syn::{
+    parse_macro_input, Attribute, Block, Expr, FnArg, ImplItem, ImplItemFn, Item, ItemFn, ItemImpl, Lit,
+    Receiver, Type,
+};
 
 #[proc_macro_attribute]
 #[cfg(not(test))]
@@ -144,13 +148,15 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
             panic!("Only on impl struct");
         }
     };
-
+    let mut methods = vec![];
     for item in service.items.iter() {
         match item {
             ImplItem::Const(_) => {}
             ImplItem::Fn(handler) => {
                 if handler.sig.asyncness.is_some() {
                     println!("Handler {}", handler.sig.ident.to_string());
+                    let method = create_service_client_fn(service_name.clone(), handler);
+                    methods.push(method);
                 }
             }
             _ => {
@@ -158,9 +164,28 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
     }
+    let service_client = format_ident!("{}ClientImpl", service_name.to_string());
+    let service_client_ext = format_ident!("{}ClientExt", service_name.to_string());
+    let service_client_indent = service_name.to_string().to_case(Case::Snake);
+    let service_client_indent = format_ident!("{}_client", service_client_indent);
     quote!(
         pub struct #service_name;
         #service
+        struct #service_client<'a> {
+            ctx: &'a Context,
+        }
+        impl<'a> #service_client<'a> {
+           #(#methods)*
+        }
+        trait #service_client_ext {
+            fn #service_client_indent(&self) -> #service_client;
+        }
+
+        impl #service_client_ext for Context {
+            fn #service_client_indent(&self) -> #service_client {
+                #service_client { ctx: &self }
+            }
+        }
         impl ServiceHandler for #service_name {
             fn name(&self) -> &'static str {
                 Self::NAME
@@ -170,6 +195,43 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
                 &["service", "greet"]
             }
         }
+    )
+    .into()
+}
+
+fn create_service_client_fn(service: proc_macro2::Ident, handler: &ImplItemFn) -> proc_macro2::TokenStream {
+    let mut client_fn = handler.clone();
+    client_fn.attrs.clear();
+    let mut signature = &mut client_fn.sig;
+    let first = signature.inputs.first_mut().unwrap();
+    *first = FnArg::Receiver(Receiver {
+        attrs: vec![],
+        reference: None,
+        mutability: None,
+        self_token: Default::default(),
+        colon_token: None,
+        ty: Box::new(Type::Verbatim(quote!(Self))),
+    });
+    let service = service.to_string();
+    let method = signature.ident.to_string();
+    // TODO: Lazy hack, remove this only use quote
+    let block = format!(
+        r#"{{
+        self.ctx
+            .invoke(
+                {}::{},
+                "{}".to_string(),
+                "{}".to_string(),
+                name,
+                None,
+            )
+            .await
+    }}"#,
+        service, method, service, method
+    );
+    client_fn.block = syn::parse_str(&block).unwrap();
+    quote! (
+        #client_fn
     )
     .into()
 }

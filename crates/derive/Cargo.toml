@@ -9,6 +9,7 @@ rust-version = { workspace = true }
 proc-macro = true
 
 [dependencies]
+convert_case = { version = "0.6.0" }
 darling =  { version = "0.20.9" }
 proc-macro2 = { version = "1.0" }
 quote = { version = "1.0" }
