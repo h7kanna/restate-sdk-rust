@@ -12,4 +12,4 @@ pub use restate_sdk::{
     endpoint::{self, *},
 };
 pub use restate_sdk_client::{HttpIngress, Ingress};
-pub use restate_sdk_derive::{bundle, main, object, service, workflow};
+pub use restate_sdk_derive::{bundle, handler, main, object, service, workflow};

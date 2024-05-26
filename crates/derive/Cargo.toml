@@ -13,7 +13,9 @@ darling =  { version = "0.20.9" }
 proc-macro2 = { version = "1.0" }
 quote = { version = "1.0" }
 restate-sdk-core = { version = "0.1.0", path = "../core" }
+restate-sdk-types = { version = "0.1.0", path = "../types" }
 serde = { workspace = true }
+serde_json = { workspace = true }
 syn = { version = "2.0" }
 thiserror = { workspace = true }
 
