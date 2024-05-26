@@ -1,16 +1,13 @@
 //! Restate Rust SDK Macros
 
 use convert_case::{Case, Casing};
-use proc_macro::{Ident, TokenStream};
+use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use restate_sdk_types::endpoint_manifest::{
     Endpoint, Handler, HandlerName, HandlerType, ProtocolMode, Service, ServiceName, ServiceType,
 };
 use std::{fs::File, io::Write};
-use syn::{
-    parse_macro_input, Attribute, Block, Expr, FnArg, ImplItem, ImplItemFn, Item, ItemFn, ItemImpl, Lit,
-    Receiver, Type,
-};
+use syn::{Attribute, Expr, FnArg, ImplItem, ImplItemFn, Item, ItemFn, ItemImpl, Lit, Receiver, Type};
 
 #[proc_macro_attribute]
 #[cfg(not(test))]
@@ -65,12 +62,6 @@ pub fn bundle(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut file = File::create("manifest.json").expect("Unable to create manifest file");
     file.write_all(manifest_json.as_bytes())
         .expect("Unable to write manifest file");
-
-    let mut all = vec![];
-    for service in &manifest.services {
-        let mut m = handler_methods(service);
-        all.append(&mut m);
-    }
 
     let methods = manifest
         .services
