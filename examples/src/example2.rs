@@ -31,7 +31,7 @@ mod handler {
 
         #[restate::handler]
         pub async fn service(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            let output = ctx.echo(name.clone()).await?;
+            let output = ctx.echo_service_client().echo(name.clone()).await?;
             Ok(ExecOutput { test: output.test })
         }
     }

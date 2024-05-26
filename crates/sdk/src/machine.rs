@@ -52,7 +52,7 @@ impl StateMachine {
         )
     }
 
-    pub async fn invoke<F, I, R>(service_fn: F, state_machine: Arc<Mutex<StateMachine>>)
+    pub async fn invoke<F, I, R>(handler: F, state_machine: Arc<Mutex<StateMachine>>)
     where
         for<'a> I: Serialize + Deserialize<'a>,
         for<'a> R: Serialize + Deserialize<'a>,
@@ -61,25 +61,28 @@ impl StateMachine {
         let input = state_machine.lock().input.clone().unwrap();
         let input = serde_json::from_slice(&input.to_vec()).unwrap();
         let ctx = RestateContext::new(state_machine.clone());
-        let result = service_fn(ctx, input).await.unwrap();
-        let result = serde_json::to_string(&result).unwrap();
-        let output: ProtocolMessage = PlainRawEntry::new(
-            PlainEntryHeader::Output,
-            service_protocol::OutputEntryMessage {
-                name: "".to_string(),
-                result: Some(service_protocol::output_entry_message::Result::Value(
-                    result.into(),
-                )),
+        match handler(ctx, input).await {
+            Ok(result) => {
+                let result = serde_json::to_string(&result).unwrap();
+                let output: ProtocolMessage = PlainRawEntry::new(
+                    PlainEntryHeader::Output,
+                    service_protocol::OutputEntryMessage {
+                        name: "".to_string(),
+                        result: Some(service_protocol::output_entry_message::Result::Value(
+                            result.into(),
+                        )),
+                    }
+                    .encode_to_vec()
+                    .into(),
+                )
+                .into();
+                println!("{:?} end", output);
             }
-            .encode_to_vec()
-            .into(),
-        )
-        .into();
-        println!("{:?} end", output);
+            Err(err) => {}
+        };
         state_machine
             .lock()
             .send(ProtocolMessage::End(service_protocol::EndMessage {}));
-        //state_machine.lock().handle_user_code_message(output.message_type, output.message);
     }
 
     pub fn handle_runtime_message(&mut self, message: ProtocolMessage) -> Bytes {

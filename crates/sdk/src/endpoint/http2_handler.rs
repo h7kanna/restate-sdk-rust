@@ -10,17 +10,17 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-pub async fn handle<F, I, R>(service_fn: F, connection: Http2Connection)
+pub async fn handle<F, I, R>(handler: F, connection: Http2Connection)
 where
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
     F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
 {
-    handle_invocation(service_fn, connection).await
+    handle_invocation(handler, connection).await
 }
 
 pub async fn handle_invocation<F, I, R>(
-    service_fn: F,
+    handler: F,
     mut connection: impl Connection + MessageStreamer + 'static,
 ) where
     for<'a> I: Serialize + Deserialize<'a>,
@@ -65,7 +65,7 @@ pub async fn handle_invocation<F, I, R>(
     });
 
     // step 5: invoke the function
-    StateMachine::invoke(service_fn, state_machine).await
+    StateMachine::invoke(handler, state_machine).await
 }
 
 #[cfg(test)]

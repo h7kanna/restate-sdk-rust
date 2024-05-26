@@ -7,7 +7,7 @@ use restate_sdk_types::{
 };
 use restate_service_protocol::{
     codec::ProtobufRawEntryCodec,
-    message::{MessageHeader, MessageType, ProtocolMessage},
+    message::{MessageType, ProtocolMessage},
 };
 use std::cmp::PartialEq;
 

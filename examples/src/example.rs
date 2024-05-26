@@ -54,24 +54,34 @@ mod bundle {
     }
 
     trait SimpleServiceHandlerClient {
-        async fn greet(ctx: &Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
+        async fn greet(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
     }
 
-    struct SimpleServiceHandlerClientImpl;
+    struct SimpleServiceClientImpl<'a> {
+        ctx: &'a Context,
+    }
 
-    impl SimpleServiceHandlerClientImpl {
-        async fn greet(&self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            Ok(ExecOutput { test: "".to_string() })
+    impl<'a> SimpleServiceClientImpl<'a> {
+        async fn greet(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+            self.ctx
+                .invoke(
+                    SimpleService::greet,
+                    "SimpleService".to_string(),
+                    "greet".to_string(),
+                    name,
+                    None,
+                )
+                .await
         }
     }
 
-    trait SimpleServiceHandlerClientExt {
-        fn simple_service_client(&self) -> SimpleServiceHandlerClientImpl;
+    trait SimpleServiceClientExt {
+        fn simple_service_client(&self) -> SimpleServiceClientImpl;
     }
 
-    impl SimpleServiceHandlerClientExt for HttpIngress {
-        fn simple_service_client(&self) -> SimpleServiceHandlerClientImpl {
-            SimpleServiceHandlerClientImpl {}
+    impl SimpleServiceClientExt for Context {
+        fn simple_service_client(&self) -> SimpleServiceClientImpl {
+            SimpleServiceClientImpl { ctx: &self }
         }
     }
 
@@ -83,8 +93,9 @@ mod bundle {
         #[async_recursion]
         #[restate::handler]
         pub async fn service(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            println!("I'm here ---------> {:?}", name);
-            let output = ctx.greet(name.clone()).await?;
+            let output = ctx.simple_service_client().greet(name.clone()).await?;
+            // Calling ourselves
+            let output = ctx.service_client().greet(name.clone()).await?;
             Ok(ExecOutput { test: output.test })
         }
 
@@ -94,42 +105,48 @@ mod bundle {
         }
     }
 
-    trait ServiceExt {
-        async fn service(&self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
-        async fn greet(&self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
-    }
-
-    impl ServiceExt for Context {
-        async fn service(&self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            self.invoke(
-                Service::service,
-                "Greeter".to_string(),
-                "greet".to_string(),
-                name,
-                None,
-            )
-            .await
-        }
-
-        async fn greet(&self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            self.invoke(
-                Service::greet,
-                "Greeter".to_string(),
-                "greet2".to_string(),
-                name,
-                None,
-            )
-            .await
-        }
-    }
-
     trait ServiceHandlerClient {
-        fn service_client(&self) -> Service;
+        async fn service(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
+        async fn greet(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error>;
     }
 
-    impl ServiceHandlerClient for HttpIngress {
-        fn service_client(&self) -> Service {
-            todo!()
+    struct ServiceClientImpl<'a> {
+        ctx: &'a Context,
+    }
+
+    impl<'a> ServiceClientImpl<'a> {
+        async fn service(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+            self.ctx
+                .invoke(
+                    Service::service,
+                    "Service".to_string(),
+                    "service".to_string(),
+                    name,
+                    None,
+                )
+                .await
+        }
+
+        async fn greet(self, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+            self.ctx
+                .invoke(
+                    Service::greet,
+                    "Service".to_string(),
+                    "greet".to_string(),
+                    name,
+                    None,
+                )
+                .await
+        }
+    }
+
+    trait ServiceClientExt {
+        fn service_client(&self) -> ServiceClientImpl;
+    }
+
+    impl ServiceClientExt for Context {
+        fn service_client(&self) -> ServiceClientImpl {
+            ServiceClientImpl { ctx: &self }
         }
     }
 }
