@@ -1,5 +1,6 @@
+#[restate::bundle]
 mod handler {
-    use restate::{Context, HttpIngress};
+    use restate::Context;
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,6 +16,8 @@ mod handler {
     #[restate::service]
     impl EchoService {
         const NAME: &'static str = "Echo";
+        const TYPE: &'static str = "SERVICE";
+
         #[restate::handler]
         pub async fn echo(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             Ok(ExecOutput { test: name.test })
@@ -24,6 +27,8 @@ mod handler {
     #[restate::service]
     impl Service {
         const NAME: &'static str = "Service";
+        const TYPE: &'static str = "SERVICE";
+
         #[restate::handler]
         pub async fn service(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             let output = ctx.echo(name.clone()).await?;

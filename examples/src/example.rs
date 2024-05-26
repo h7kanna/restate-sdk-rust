@@ -45,6 +45,7 @@ mod bundle {
     #[restate::service]
     impl SimpleService {
         const NAME: &'static str = "SimpleService";
+        const TYPE: &'static str = "SERVICE";
 
         #[restate::handler]
         pub async fn greet(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
@@ -77,6 +78,7 @@ mod bundle {
     #[restate::service]
     impl Service {
         const NAME: &'static str = "Service";
+        const TYPE: &'static str = "SERVICE";
 
         #[async_recursion]
         #[restate::handler]
@@ -128,99 +130,6 @@ mod bundle {
     impl ServiceHandlerClient for HttpIngress {
         fn service_client(&self) -> Service {
             todo!()
-        }
-    }
-}
-
-async fn service(req: Request<Incoming>) -> restate::Result<Response<BoxBody<Bytes, Error>>> {
-    match (req.method(), req.uri().path()) {
-        (&Method::POST, "/discover") => {
-            let manifest = r#"{
-  "protocolMode": "BIDI_STREAM",
-  "minProtocolVersion": 1,
-  "maxProtocolVersion": 1,
-  "services": [
-    {
-      "name": "Greeter",
-      "ty": "SERVICE",
-      "handlers": [
-        {
-          "name": "greet",
-          "ty": "EXCLUSIVE"
-        },
-        {
-          "name": "greet2",
-          "ty": "EXCLUSIVE"
-        }
-      ]
-    }
-  ]
-}"#;
-            println!("{}, {}", req.method(), req.uri().path());
-            for (name, header) in req.headers() {
-                println!("{:?}, {:?}", name, header);
-            }
-
-            let response = Response::builder()
-                .status(StatusCode::OK)
-                .header("content-type", "application/json")
-                .header("x-restate-server", "restate-sdk-rust/0.1.0")
-                .body(full(manifest).map_err(|e| e.into()).boxed())
-                .unwrap();
-            Ok(response)
-        }
-
-        (&Method::POST, "/invoke/Greeter/greet") => {
-            println!("{}, {}", req.method(), req.uri().path());
-            for (name, header) in req.headers() {
-                println!("{:?}, {:?}", name, header);
-            }
-
-            let (http2conn, boxed_body) = Http2Connection::new(req);
-
-            tokio::spawn(
-                async move { http2_handler::handle(crate::bundle::Service::service, http2conn).await },
-            );
-
-            let response = Response::builder()
-                .status(StatusCode::OK)
-                .header("content-type", "application/restate")
-                .header("x-restate-server", "restate-sdk-rust/0.1.0")
-                .body(boxed_body)
-                .unwrap();
-
-            Ok(response)
-        }
-
-        (&Method::POST, "/invoke/Greeter/greet2") => {
-            println!("{}, {}", req.method(), req.uri().path());
-            for (name, header) in req.headers() {
-                println!("{:?}, {:?}", name, header);
-            }
-
-            let (http2conn, boxed_body) = Http2Connection::new(req);
-
-            tokio::spawn(async move {
-                http2_handler::handle(crate::bundle::SimpleService::greet, http2conn).await
-            });
-
-            let response = Response::builder()
-                .status(StatusCode::OK)
-                .header("content-type", "application/restate")
-                .header("x-restate-server", "restate-sdk-rust/0.1.0")
-                .body(boxed_body)
-                .unwrap();
-            Ok(response)
-        }
-
-        // Return the 404 Not Found for other routes.
-        _ => {
-            println!("{}, {}", req.method(), req.uri().path());
-            let response = Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(empty().map_err(|e| e.into()).boxed())
-                .unwrap();
-            Ok(response)
         }
     }
 }

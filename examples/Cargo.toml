@@ -11,6 +11,12 @@ name = "example"
 path = "src/example.rs"
 required-features = []
 
+[[example]]
+doc = false
+name = "example2"
+path = "src/example2.rs"
+required-features = []
+
 [features]
 default = []
 
