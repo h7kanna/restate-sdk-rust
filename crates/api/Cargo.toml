@@ -8,7 +8,6 @@ rust-version = { workspace = true }
 [features]
 default = []
 tokio = []
-derive = ["restate-sdk-derive"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -20,4 +19,4 @@ hyper = { workspace = true }
 restate-sdk = { version = "0.1.0", path = "../sdk" }
 restate-sdk-client = { version = "0.1.0", path = "../client" }
 restate-sdk-core = { version = "0.1.0", path = "../core" }
-restate-sdk-derive = { version = "0.1.0", path = "../derive", optional = true }
+restate-sdk-derive = { version = "0.1.0", path = "../derive" }

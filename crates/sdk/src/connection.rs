@@ -5,7 +5,7 @@ use futures::{pin_mut, Stream};
 use futures_util::{StreamExt, TryStreamExt};
 use http::Request;
 use http_body::Frame;
-use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full, StreamBody};
 use prost::Message;
 use restate_sdk_types::service_protocol::ServiceProtocolVersion;
 use restate_service_protocol::message::{Decoder, Encoder, MessageType, ProtocolMessage};
@@ -108,6 +108,14 @@ impl Connection for Http2Connection {
             println!("Outbound send error: {}", err);
         }
     }
+}
+
+pub fn empty() -> BoxBody<Bytes, hyper::Error> {
+    Empty::<Bytes>::new().map_err(|never| match never {}).boxed()
+}
+
+pub fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
+    Full::new(chunk.into()).map_err(|never| match never {}).boxed()
 }
 
 #[cfg(test)]

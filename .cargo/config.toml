@@ -1,5 +1,5 @@
 [build]
-rustflags = []
+rustflags = ["-Adead_code", "-Aunused", "-Awarnings"]
 
 [alias]
 format = "fmt --all --verbose"

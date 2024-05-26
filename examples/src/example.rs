@@ -16,6 +16,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     endpoint(service).await
 }
 
+#[restate::bundle]
+mod bundle {}
+
 trait ServiceHandler {
     fn name(&self) -> &'static str;
     fn handlers(&self) -> &'static [&'static str];
@@ -32,21 +35,13 @@ pub struct ExecOutput {
 }
 
 struct SimpleService;
+
+#[restate::service]
 impl SimpleService {
     const NAME: &'static str = "service";
 
     async fn greet(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
         Ok(ExecOutput { test: name.test })
-    }
-}
-
-impl ServiceHandler for SimpleService {
-    fn name(&self) -> &'static str {
-        Self::NAME
-    }
-
-    fn handlers(&self) -> &'static [&'static str] {
-        &["service", "greet"]
     }
 }
 
@@ -72,6 +67,8 @@ impl SimpleServiceHandlerClientExt for HttpIngress {
 }
 
 struct Service;
+
+#[restate::service]
 impl Service {
     const NAME: &'static str = "service";
 
@@ -84,16 +81,6 @@ impl Service {
 
     async fn greet(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
         Ok(ExecOutput { test: name.test })
-    }
-}
-
-impl ServiceHandler for Service {
-    fn name(&self) -> &'static str {
-        Self::NAME
-    }
-
-    fn handlers(&self) -> &'static [&'static str] {
-        &["service", "greet"]
     }
 }
 
