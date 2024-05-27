@@ -54,7 +54,7 @@ impl Journal {
     }
 
     fn handle_input_message(&mut self, input: InputEntry) {
-        if self.invocation.nb_entries_to_replay == 1 {
+        if self.invocation.number_entries_to_replay == 1 {
             self.transition_state(NewExecutionState::PROCESSING);
         }
         self.pending_entries.insert(0, JournalEntry {
@@ -79,7 +79,7 @@ impl Journal {
 
     fn increment_user_code_index(&mut self) {
         self.user_code_journal_index += 1;
-        if self.user_code_journal_index == self.invocation.nb_entries_to_replay
+        if self.user_code_journal_index == self.invocation.number_entries_to_replay
             && self.state == NewExecutionState::REPLAYING
         {
             self.transition_state(NewExecutionState::PROCESSING)

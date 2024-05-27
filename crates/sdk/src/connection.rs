@@ -9,22 +9,23 @@ use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full, StreamBody};
 use prost::Message;
 use restate_sdk_types::service_protocol::ServiceProtocolVersion;
 use restate_service_protocol::message::{Decoder, Encoder, MessageType, ProtocolMessage};
+use std::future::Future;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
-pub trait RestateStreamConsumer: Send {
-    fn handle(&mut self, message: (MessageType, ProtocolMessage)) -> bool;
-}
-
-pub trait MessageStreamer: Send {
-    async fn pipe_to_consumer(&mut self, consumer: impl RestateStreamConsumer);
-}
-
 pub(crate) trait Sealed {}
 
+pub trait RestateStreamConsumer {
+    fn handle_message(&mut self, message: (MessageType, ProtocolMessage)) -> bool;
+}
+
+pub trait MessageReceiver: Send {
+    fn recv(&mut self) -> impl Future<Output = Option<(MessageType, ProtocolMessage)>> + Send;
+}
+
 #[async_trait]
-pub trait Connection: Sealed + Send {
-    fn send(&mut self, message: ProtocolMessage);
+pub trait MessageSender: Sealed + Send {
+    fn send(&self, message: ProtocolMessage);
 }
 
 pub struct Http2Connection {
@@ -33,7 +34,9 @@ pub struct Http2Connection {
 }
 
 impl Http2Connection {
-    pub fn new(request: Request<hyper::body::Incoming>) -> (Self, BoxBody<Bytes, anyhow::Error>) {
+    pub fn new(
+        request: Request<hyper::body::Incoming>,
+    ) -> (Self, impl MessageSender, BoxBody<Bytes, anyhow::Error>) {
         // Setup inbound message buffer
         let frame_stream = http_body_util::BodyStream::new(
             request
@@ -77,33 +80,35 @@ impl Http2Connection {
             },
         )));
 
+        let sender = Sender {
+            outbound_tx: outbound_tx.clone(),
+        };
+
         (
             Self {
                 inbound_rx,
                 outbound_tx,
             },
+            sender,
             boxed_body,
         )
     }
 }
 
-impl MessageStreamer for Http2Connection {
-    async fn pipe_to_consumer(&mut self, mut consumer: impl RestateStreamConsumer) {
-        // Setup inbound message consumer
-        loop {
-            if let Some((header, message)) = self.inbound_rx.recv().await {
-                if !consumer.handle((header, message)) {
-                    continue;
-                }
-            }
-        }
+impl MessageReceiver for Http2Connection {
+    async fn recv(&mut self) -> Option<(MessageType, ProtocolMessage)> {
+        self.inbound_rx.recv().await
     }
 }
 
-impl Sealed for Http2Connection {}
+struct Sender {
+    outbound_tx: UnboundedSender<ProtocolMessage>,
+}
 
-impl Connection for Http2Connection {
-    fn send(&mut self, message: ProtocolMessage) {
+impl Sealed for Sender {}
+
+impl MessageSender for Sender {
+    fn send(&self, message: ProtocolMessage) {
         if let Err(err) = self.outbound_tx.send(message) {
             println!("Outbound send error: {}", err);
         }

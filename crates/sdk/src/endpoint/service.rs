@@ -1,4 +1,4 @@
-use crate::connection::{empty, full, Connection, Http2Connection};
+use crate::connection::{empty, full, Http2Connection, MessageSender};
 use bytes::Bytes;
 use http::{Method, Request, Response, StatusCode};
 use http_body_util::{combinators::BoxBody, BodyExt};
@@ -58,11 +58,11 @@ async fn service(
                 println!("{:?}, {:?}", name, header);
             }
 
-            let (mut http2conn, boxed_body) = Http2Connection::new(req);
+            let (_, sender, boxed_body) = Http2Connection::new(req);
 
             tokio::spawn(async move {
                 //tokio::time::sleep(Duration::from_secs(5)).await;
-                http2conn.send(
+                sender.send(
                     PlainRawEntry::new(
                         PlainEntryHeader::Output,
                         service_protocol::OutputEntryMessage {
@@ -77,7 +77,7 @@ async fn service(
                     .into(),
                 );
 
-                http2conn.send(ProtocolMessage::End(service_protocol::EndMessage {}));
+                sender.send(ProtocolMessage::End(service_protocol::EndMessage {}));
                 tokio::time::sleep(Duration::from_secs(2)).await;
             });
 
@@ -96,12 +96,12 @@ async fn service(
                 println!("{:?}, {:?}", name, header);
             }
 
-            let (mut http2conn, boxed_body) = Http2Connection::new(req);
+            let (_, sender, boxed_body) = Http2Connection::new(req);
 
             tokio::spawn(async move {
                 tokio::time::sleep(Duration::from_secs(1)).await;
 
-                http2conn.send(
+                sender.send(
                     PlainRawEntry::new(
                         PlainEntryHeader::Call {
                             is_completed: false,
@@ -124,7 +124,7 @@ async fn service(
 
                 tokio::time::sleep(Duration::from_secs(10)).await;
 
-                http2conn.send(
+                sender.send(
                     PlainRawEntry::new(
                         PlainEntryHeader::Output,
                         service_protocol::OutputEntryMessage {
@@ -139,7 +139,7 @@ async fn service(
                     .into(),
                 );
 
-                http2conn.send(ProtocolMessage::End(service_protocol::EndMessage {}));
+                sender.send(ProtocolMessage::End(service_protocol::EndMessage {}));
                 tokio::time::sleep(Duration::from_secs(10)).await;
             });
 

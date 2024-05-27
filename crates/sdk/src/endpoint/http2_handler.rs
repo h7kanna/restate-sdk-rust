@@ -1,5 +1,5 @@
 use crate::{
-    connection::{Connection, Http2Connection, MessageStreamer},
+    connection::{Http2Connection, MessageReceiver, MessageSender, RestateStreamConsumer},
     context::RestateContext,
     invocation::InvocationBuilder,
     machine::StateMachine,
@@ -10,18 +10,19 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-pub async fn handle<F, I, R>(handler: F, connection: Http2Connection)
+pub async fn handle<F, I, R>(handler: F, connection: Http2Connection, sender: impl MessageSender + 'static)
 where
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
     F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
 {
-    handle_invocation(handler, connection).await
+    handle_invocation(handler, connection, sender).await
 }
 
 pub async fn handle_invocation<F, I, R>(
     handler: F,
-    mut connection: impl Connection + MessageStreamer + 'static,
+    mut streamer: impl MessageReceiver + 'static,
+    sender: impl MessageSender + 'static,
 ) where
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
@@ -29,12 +30,17 @@ pub async fn handle_invocation<F, I, R>(
 {
     // step 1: collect all journal entries
     let mut builder = InvocationBuilder::new();
-    connection.pipe_to_consumer(&mut builder).await;
+    loop {
+        if let Some(message) = streamer.recv().await {
+            if builder.handle_message(message) {
+                break;
+            }
+        }
+    }
     let invocation = builder.build();
 
     // step 2: create the state machine
-    let (mut state_machine, mut suspension_rx) = StateMachine::new(Box::new(connection), invocation);
-    //connection.pipe_to_consumer(&mut state_machine).await;
+    let (state_machine, mut suspension_rx) = StateMachine::new(Box::new(sender), invocation);
 
     let state_machine = Arc::new(Mutex::new(state_machine));
     let message_consumer = state_machine.clone();
@@ -48,9 +54,18 @@ pub async fn handle_invocation<F, I, R>(
         // Connection handler
         let message_consumer = message_consumer;
         let token = token2;
-        tokio::select! {
-            _ = token.cancelled() => {
+        loop {
+            tokio::select! {
+                _ = token.cancelled() => {
 
+                }
+                message = streamer.recv() => {
+                   if let Some(message) = message {
+                       let mut message_consumer = message_consumer.lock();
+                        println!("Stream consumption completed");
+                        message_consumer.handle_message(message);
+                    }
+                }
             }
         }
     });
@@ -72,7 +87,7 @@ pub async fn handle_invocation<F, I, R>(
 mod tests {
     use super::*;
     use crate::{
-        connection::{Connection, RestateStreamConsumer},
+        connection::{MessageSender, RestateStreamConsumer},
         context::RestateContext,
     };
     use prost::Message;
@@ -82,28 +97,26 @@ mod tests {
     };
     use restate_service_protocol::message::{MessageType, ProtocolMessage};
     use serde::{Deserialize, Serialize};
-    use std::time::Duration;
+    use std::{collections::VecDeque, time::Duration};
     use tokio::sync::mpsc::{channel, UnboundedSender};
     use tokio_util::sync::CancellationToken;
     use tracing_test::traced_test;
 
     struct TestDriver {
-        input_messages: Vec<(MessageType, ProtocolMessage)>,
+        input_messages: VecDeque<(MessageType, ProtocolMessage)>,
         output_messages: UnboundedSender<ProtocolMessage>,
     }
 
-    impl MessageStreamer for TestDriver {
-        async fn pipe_to_consumer(&mut self, mut consumer: impl RestateStreamConsumer) {
-            for message in &self.input_messages {
-                consumer.handle(message.clone());
-            }
+    impl MessageReceiver for TestDriver {
+        async fn recv(&mut self) -> Option<(MessageType, ProtocolMessage)> {
+            self.input_messages.pop_front()
         }
     }
 
     impl crate::connection::Sealed for TestDriver {}
 
-    impl Connection for TestDriver {
-        fn send(&mut self, message: ProtocolMessage) {
+    impl MessageSender for TestDriver {
+        fn send(&self, message: ProtocolMessage) {
             self.output_messages.send(message).unwrap();
         }
     }
@@ -139,7 +152,7 @@ mod tests {
 
         let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel();
         let connection = TestDriver {
-            input_messages: vec![
+            input_messages: VecDeque::from([
                 (
                     MessageType::Start,
                     ProtocolMessage::Start(restate_sdk_types::service_protocol::StartMessage {
@@ -186,7 +199,7 @@ mod tests {
                     )
                     .into(),
                 ),
-            ],
+            ]),
             output_messages: output_tx,
         };
 

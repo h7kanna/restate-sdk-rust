@@ -1,5 +1,5 @@
 use crate::{
-    connection::{Connection, RestateStreamConsumer},
+    connection::{MessageSender, RestateStreamConsumer},
     context::RestateContext,
     invocation::Invocation,
     journal::Journal,
@@ -7,10 +7,11 @@ use crate::{
     store::LocalStore,
 };
 use bytes::Bytes;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, MutexGuard};
 use prost::Message;
 use restate_sdk_core::ServiceHandler;
 use restate_sdk_types::{
+    endpoint_manifest::ProtocolMode,
     journal::{
         raw::{PlainEntryHeader, PlainRawEntry},
         Entry,
@@ -22,30 +23,37 @@ use serde::{Deserialize, Serialize};
 use std::{future::Future, sync::Arc, task::Waker};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
+const SUSPENSION_MILLIS: u32 = 30000;
+
 pub(crate) struct StateMachine {
-    closed: bool,
-    input_channel_closed: bool,
     journal: Journal,
-    local_state_store: LocalStore,
+    machine_closed: bool,
+    input_channel_closed: bool,
+    local_state_store: Option<LocalStore>,
     logger: Logger,
     suspension_tx: UnboundedSender<String>,
-    connection: Box<dyn Connection>,
+    connection: Box<dyn MessageSender>,
+    protocol_mode: ProtocolMode,
     input: Option<Bytes>,
 }
 
 impl StateMachine {
-    pub fn new(connection: Box<dyn Connection>, invocation: Invocation) -> (Self, UnboundedReceiver<String>) {
+    pub fn new(
+        connection: Box<dyn MessageSender>,
+        invocation: Invocation,
+    ) -> (Self, UnboundedReceiver<String>) {
         let input = invocation.invocation_value.clone();
         let (suspension_tx, suspension_rx) = unbounded_channel();
         (
             Self {
-                closed: false,
-                input_channel_closed: false,
                 journal: Journal::new(invocation),
-                local_state_store: LocalStore::new(),
+                machine_closed: false,
+                input_channel_closed: false,
+                local_state_store: None,
                 logger: Logger::new(),
                 suspension_tx,
                 connection,
+                protocol_mode: ProtocolMode::BidiStream,
                 input,
             },
             suspension_rx,
@@ -85,6 +93,27 @@ impl StateMachine {
             .send(ProtocolMessage::End(service_protocol::EndMessage {}));
     }
 
+    pub fn handle_message(&mut self, message: (MessageType, ProtocolMessage)) -> bool {
+        if self.machine_closed {
+            return false;
+        }
+        if message.0 == MessageType::Completion {
+            if let ProtocolMessage::Completion(message) = message.1 {
+                self.journal.handle_runtime_completion_message(message);
+            } else {
+                // Wrong message type
+            }
+        } else if message.0 == MessageType::EntryAck {
+            if let ProtocolMessage::EntryAck(message) = message.1 {
+                self.journal.handle_runtime_entry_ack_message(message);
+            } else {
+                // Wrong message type
+            }
+        }
+        // Clear suspension tasks
+        false
+    }
+
     pub fn handle_runtime_message(&mut self, message: ProtocolMessage) -> Bytes {
         match message {
             ProtocolMessage::Completion(completion) => {
@@ -103,7 +132,7 @@ impl StateMachine {
         message: Entry,
         waker: Waker,
     ) -> Option<Bytes> {
-        if self.closed {}
+        if self.machine_closed {}
         let result = self
             .journal
             .handle_user_code_message(entry_index, message.clone(), waker);
@@ -131,8 +160,12 @@ impl StateMachine {
     pub fn suspend(&self) {}
 }
 
-impl RestateStreamConsumer for &mut StateMachine {
-    fn handle(&mut self, message: (MessageType, ProtocolMessage)) -> bool {
+
+impl RestateStreamConsumer for MutexGuard<'_, StateMachine> {
+    fn handle_message(&mut self, message: (MessageType, ProtocolMessage)) -> bool {
+        if self.machine_closed {
+            return false;
+        }
         if message.0 == MessageType::Completion {
             if let ProtocolMessage::Completion(message) = message.1 {
                 self.journal.handle_runtime_completion_message(message);
@@ -141,12 +174,13 @@ impl RestateStreamConsumer for &mut StateMachine {
             }
         } else if message.0 == MessageType::EntryAck {
             if let ProtocolMessage::EntryAck(message) = message.1 {
+                self.journal.handle_runtime_entry_ack_message(message);
             } else {
                 // Wrong message type
             }
         }
-
-        true
+        // Clear suspension tasks
+        false
     }
 }
 

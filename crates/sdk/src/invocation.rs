@@ -9,32 +9,37 @@ use restate_service_protocol::{
     codec::ProtobufRawEntryCodec,
     message::{MessageType, ProtocolMessage},
 };
-use std::cmp::PartialEq;
+use std::{cmp::PartialEq, collections::HashMap};
 
 #[derive(Copy, Clone, PartialEq)]
 enum State {
-    ExpectingStart = 0,
-    ExpectingInput = 1,
-    ExpectingFurtherReplay = 2,
-    Complete = 3,
+    ExpectingStart,
+    ExpectingInput,
+    ExpectingFurtherReplay,
+    Complete,
 }
 
 pub(crate) struct Invocation {
-    pub nb_entries_to_replay: u32,
+    pub id: Bytes,
+    pub debug_id: Option<String>,
+    pub number_entries_to_replay: u32,
     pub replay_entries: DashMap<u32, Entry>,
     pub invocation_value: Option<Bytes>,
+    pub invocation_headers: Option<HashMap<String, String>>,
+    pub local_state_store: Option<LocalStore>,
+    pub user_key: Option<String>,
 }
 
 pub(crate) struct InvocationBuilder {
     state: State,
-    runtime_replay_index: u32,
+    replay_index: u32,
     replay_entries: DashMap<u32, Entry>,
     id: Option<Bytes>,
     debug_id: Option<String>,
-    nb_entries_to_replay: u32,
+    known_entries: u32,
     invocation_value: Option<Bytes>,
-    invocation_headers: Option<Bytes>,
-    local_state_store: LocalStore,
+    invocation_headers: Option<HashMap<String, String>>,
+    local_state_store: Option<LocalStore>,
     user_key: Option<String>,
 }
 
@@ -42,14 +47,14 @@ impl InvocationBuilder {
     pub fn new() -> Self {
         Self {
             state: State::ExpectingStart,
-            runtime_replay_index: 0,
+            replay_index: 0,
             replay_entries: DashMap::new(),
             id: None,
             debug_id: None,
-            nb_entries_to_replay: 0,
+            known_entries: 0,
             invocation_value: None,
             invocation_headers: None,
-            local_state_store: LocalStore::new(),
+            local_state_store: None,
             user_key: None,
         }
     }
@@ -59,17 +64,23 @@ impl InvocationBuilder {
             // Error
         }
         Invocation {
-            nb_entries_to_replay: self.nb_entries_to_replay,
+            id: self.id.unwrap(),
+            debug_id: self.debug_id,
+            number_entries_to_replay: self.known_entries,
             replay_entries: self.replay_entries,
             invocation_value: self.invocation_value,
+            invocation_headers: self.invocation_headers,
+            local_state_store: self.local_state_store,
+            user_key: self.user_key,
         }
     }
 
     fn handle_start_message(&mut self, message: StartMessage) {
-        self.nb_entries_to_replay = message.known_entries;
+        self.known_entries = message.known_entries;
         self.id = Some(message.id);
         self.debug_id = Some(message.debug_id);
-        self.user_key = Some(message.key)
+        self.user_key = Some(message.key);
+        self.local_state_store = Some(LocalStore::new(message.partial_state, message.state_map))
     }
 
     fn handle_input_message(&mut self, message: InputEntry) {
@@ -88,22 +99,29 @@ impl InvocationBuilder {
     }
 
     fn append_replay_entry(&mut self, entry: Entry) {
-        self.replay_entries.insert(self.runtime_replay_index, entry);
-        self.runtime_replay_index += 1;
+        self.replay_entries.insert(self.replay_index, entry);
+        self.replay_index += 1;
     }
 
     fn is_complete(&self) -> bool {
         self.state == State::Complete
     }
 
-    fn check_state(&self, state: State, expected: MessageType, message: &ProtocolMessage) {}
+    fn check_state(
+        &self,
+        state: State,
+        expected: MessageType,
+        actual: MessageType,
+        message: &ProtocolMessage,
+    ) {
+    }
 }
 
-impl RestateStreamConsumer for &mut InvocationBuilder {
-    fn handle(&mut self, message: (MessageType, ProtocolMessage)) -> bool {
+impl RestateStreamConsumer for InvocationBuilder {
+    fn handle_message(&mut self, message: (MessageType, ProtocolMessage)) -> bool {
         match self.state {
             State::ExpectingStart => {
-                self.check_state(self.state, message.0, &message.1);
+                self.check_state(self.state, MessageType::Start, message.0, &message.1);
                 match message.1 {
                     ProtocolMessage::Start(start_message) => {
                         self.handle_start_message(start_message);
@@ -112,15 +130,14 @@ impl RestateStreamConsumer for &mut InvocationBuilder {
                         // Invalid
                     }
                 }
+                self.state = State::ExpectingInput;
+                return false;
             }
             State::ExpectingInput => {
-                self.check_state(self.state, message.0, &message.1);
+                self.check_state(self.state, MessageType::InputEntry, message.0, &message.1);
                 let entry = self.deserialize_entry(message.1).unwrap();
-                match &entry {
-                    Entry::Input(input) => {
-                        self.handle_input_message(input.clone());
-                    }
-                    _ => {}
+                if let Entry::Input(input) = &entry {
+                    self.handle_input_message(input.clone());
                 }
                 self.append_replay_entry(entry);
             }
@@ -132,18 +149,17 @@ impl RestateStreamConsumer for &mut InvocationBuilder {
                 // Error
             }
         }
-        if self.replay_entries.len() == self.nb_entries_to_replay as usize {
+        if self.replay_entries.len() == self.known_entries as usize {
             self.state = State::Complete;
         } else {
             self.state = State::ExpectingFurtherReplay;
         }
-        self.state == State::Complete
+        self.is_complete()
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     #[test]
     fn test_invocation() {}
 }
