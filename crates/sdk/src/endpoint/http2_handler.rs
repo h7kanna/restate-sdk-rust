@@ -22,7 +22,7 @@ where
 pub async fn handle_invocation<F, I, R>(
     handler: F,
     mut receiver: impl MessageReceiver + 'static,
-    mut sender: impl MessageSender + 'static,
+    sender: impl MessageSender + 'static,
 ) where
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
@@ -124,33 +124,31 @@ mod tests {
 
     #[derive(Serialize, Deserialize)]
     pub struct ExecInput {
-        test: String,
+        name: String,
     }
 
     #[derive(Serialize, Deserialize)]
     pub struct ExecOutput {
-        test: String,
+        status: String,
     }
 
-    async fn service_fn(ctx: RestateContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+    async fn service_fn(ctx: RestateContext, input: ExecInput) -> Result<ExecOutput, anyhow::Error> {
         let output = ctx
-            .invoke(greet_fn, "Greeter".to_string(), "greet".to_string(), name, None)
+            .invoke(greet_fn, "Greeter".to_string(), "greet".to_string(), input, None)
             .await
             .unwrap();
-        Ok(ExecOutput { test: output.test })
+        Ok(ExecOutput {
+            status: output.status,
+        })
     }
 
     async fn greet_fn(ctx: RestateContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-        Ok(ExecOutput { test: name.test })
+        Ok(ExecOutput { status: name.name })
     }
 
     #[traced_test]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_handle_connection() {
-        let token = CancellationToken::new();
-        let token2 = token.clone();
-        let input = "hello".to_string();
-
         let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel();
         let connection = TestDriver {
             input_messages: VecDeque::from([
@@ -171,7 +169,7 @@ mod tests {
                         PlainEntryHeader::Input,
                         restate_sdk_types::service_protocol::InputEntryMessage {
                             headers: vec![],
-                            value: "{\"test\":\"test\"}".into(),
+                            value: "{\"name\":\"test\"}".into(),
                             name: "".to_string(),
                         }
                         .encode_to_vec()
@@ -189,11 +187,11 @@ mod tests {
                         restate_sdk_types::service_protocol::CallEntryMessage {
                             service_name: "".to_string(),
                             handler_name: "".to_string(),
-                            parameter: "{\"test\":\"test\"}".into(),
+                            parameter: "{\"name\":\"test\"}".into(),
                             headers: vec![],
                             name: "".to_string(),
                             key: "".to_string(),
-                            result: Some(call_entry_message::Result::Value("{\"test\":\"harsha\"}".into())),
+                            result: Some(call_entry_message::Result::Value("{\"status\":\"test\"}".into())),
                         }
                         .encode_to_vec()
                         .into(),
@@ -203,32 +201,37 @@ mod tests {
             ]),
             output_messages: output_tx,
         };
+        let connection2 = connection.clone();
 
         let handle = tokio::spawn(async move {
             tokio::select! {
-                _ = token2.cancelled() => {
+                _ = tokio::time::sleep(Duration::from_secs(10)) => {
 
                 }
-                _ = handle_invocation(service_fn, connection.clone(), connection.clone()) => {
+                _ = handle_invocation(service_fn, connection2.clone(), connection2) => {
 
                 }
             }
+            println!("Invocation done done");
         });
 
-        loop {
-            tokio::select! {
-                _ = tokio::time::sleep(Duration::from_secs(2)) => {
-                    break;
-                }
-                message = output_rx.recv() => {
-                    if let Some(message) = message {
-                        println!("{:?}", message);
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = tokio::time::sleep(Duration::from_secs(10)) => {
+                        break;
+                    }
+                    message = output_rx.recv() => {
+                        if let Some(message) = message {
+                            println!("Output message: {:?}", message);
+                        }
                     }
                 }
             }
-        }
+            println!("Invocation ---dfasd----->");
+        });
 
-        token.cancel();
+        drop(connection.output_messages);
 
         handle.await.unwrap();
     }

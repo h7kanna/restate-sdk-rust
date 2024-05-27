@@ -84,34 +84,25 @@ impl StateMachine {
                     .into(),
                 )
                 .into();
-                println!("{:?} end", output);
+                println!("Invocation output:  {:?}", output);
+                let mut state_machine = state_machine.lock();
+                state_machine.send(output);
+                state_machine.send(ProtocolMessage::End(service_protocol::EndMessage {}));
             }
-            Err(err) => {}
+            Err(err) => {
+                let error: ProtocolMessage = ProtocolMessage::Error(service_protocol::ErrorMessage {
+                    code: 0,
+                    message: "".to_string(),
+                    description: err.to_string(),
+                    related_entry_index: None,
+                    related_entry_name: None,
+                    related_entry_type: None,
+                });
+                let mut state_machine = state_machine.lock();
+                state_machine.send(error);
+                state_machine.send(ProtocolMessage::End(service_protocol::EndMessage {}));
+            }
         };
-        state_machine
-            .lock()
-            .send(ProtocolMessage::End(service_protocol::EndMessage {}));
-    }
-
-    pub fn handle_message(&mut self, message: (MessageType, ProtocolMessage)) -> bool {
-        if self.machine_closed {
-            return false;
-        }
-        if message.0 == MessageType::Completion {
-            if let ProtocolMessage::Completion(message) = message.1 {
-                self.journal.handle_runtime_completion_message(message);
-            } else {
-                // Wrong message type
-            }
-        } else if message.0 == MessageType::EntryAck {
-            if let ProtocolMessage::EntryAck(message) = message.1 {
-                self.journal.handle_runtime_entry_ack_message(message);
-            } else {
-                // Wrong message type
-            }
-        }
-        // Clear suspension tasks
-        false
     }
 
     pub fn handle_runtime_message(&mut self, message: ProtocolMessage) -> Bytes {
@@ -159,7 +150,6 @@ impl StateMachine {
 
     pub fn suspend(&self) {}
 }
-
 
 impl RestateStreamConsumer for MutexGuard<'_, StateMachine> {
     fn handle_message(&mut self, message: (MessageType, ProtocolMessage)) -> bool {
