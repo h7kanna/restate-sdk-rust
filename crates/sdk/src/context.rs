@@ -29,11 +29,11 @@ impl RestateContext {
         RestateContext { state_machine }
     }
 
-    pub fn sleep(&self, timeout_seconds: u64) -> impl Future<Output = Result<(), anyhow::Error>> + '_ {
+    pub fn sleep(&self, timeout_millis: u64) -> impl Future<Output = Result<(), anyhow::Error>> + '_ {
         let wake_up_time = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Time went backwards");
-        let wake_up_time = wake_up_time.as_secs() + timeout_seconds;
+        let wake_up_time = wake_up_time.as_millis() as u64 + timeout_millis;
         println!("Context sleep: Wake up time {}", wake_up_time);
         async move {
             let _ = SleepService::new(

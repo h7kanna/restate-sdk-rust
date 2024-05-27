@@ -210,8 +210,8 @@ impl Journal {
         None
     }
 
-    fn handle_processing(&mut self, entry_index: u32, message: Entry, waker: Waker) {
-        match message {
+    fn handle_processing(&mut self, entry_index: u32, entry: Entry, waker: Waker) {
+        match entry {
             Entry::Input(_) => {}
             Entry::Output(_) => {
                 self.handle_output_message(entry_index);
@@ -244,37 +244,47 @@ impl Journal {
         let journal_entry = self.pending_entries.get_mut(&message.entry_index);
         if let Some(mut journal_entry) = journal_entry {
             println!("Journal runtime message entry: {:?}", journal_entry);
-            match message.result {
-                Some(result) => match result {
-                    completion_message::Result::Empty(_) => {}
-                    completion_message::Result::Value(value) => {
-                        info!("{:?}", value);
-                        println!("Journal runtime message value: {:?}", value);
-                        match &mut journal_entry.entry {
-                            Entry::Input(_) => {}
-                            Entry::Output(_) => {}
-                            Entry::GetState(_) => {}
-                            Entry::SetState(_) => {}
-                            Entry::ClearState(_) => {}
-                            Entry::GetStateKeys(_) => {}
-                            Entry::ClearAllState => {}
-                            Entry::GetPromise(_) => {}
-                            Entry::PeekPromise(_) => {}
-                            Entry::CompletePromise(_) => {}
-                            Entry::Sleep(sleep) => sleep.result = Some(SleepResult::Fired),
-                            Entry::Call(call) => {
-                                call.result = Some(EntryResult::Success(value));
+            match &mut journal_entry.entry {
+                Entry::Input(_) => {}
+                Entry::Output(_) => {}
+                Entry::GetState(_) => {}
+                Entry::SetState(_) => {}
+                Entry::ClearState(_) => {}
+                Entry::GetStateKeys(_) => {}
+                Entry::ClearAllState => {}
+                Entry::GetPromise(_) => {}
+                Entry::PeekPromise(_) => {}
+                Entry::CompletePromise(_) => {}
+                Entry::Sleep(sleep) => {
+                    match message.result {
+                        Some(result) => match result {
+                            completion_message::Result::Empty(_) | completion_message::Result::Value(_) => {
+                                println!("Journal runtime message value: {:?}", result);
+                                sleep.result = Some(SleepResult::Fired);
                             }
-                            Entry::OneWayCall(_) => {}
-                            Entry::Awakeable(_) => {}
-                            Entry::CompleteAwakeable(_) => {}
-                            Entry::Run(_) => {}
-                            Entry::Custom(_) => {}
-                        }
+                            completion_message::Result::Failure(_) => {}
+                        },
+                        None => {}
                     }
-                    completion_message::Result::Failure(_) => {}
+                    sleep.result = Some(SleepResult::Fired);
+                }
+                Entry::Call(call) => match message.result {
+                    Some(result) => match result {
+                        completion_message::Result::Empty(_) => {}
+                        completion_message::Result::Value(value) => {
+                            info!("{:?}", value);
+                            println!("Journal runtime message value: {:?}", value);
+                            call.result = Some(EntryResult::Success(value));
+                        }
+                        completion_message::Result::Failure(_) => {}
+                    },
+                    None => {}
                 },
-                None => {}
+                Entry::OneWayCall(_) => {}
+                Entry::Awakeable(_) => {}
+                Entry::CompleteAwakeable(_) => {}
+                Entry::Run(_) => {}
+                Entry::Custom(_) => {}
             }
             if let Some(mut waker) = journal_entry.waker.take() {
                 println!("Journal runtime waking up: {:?}", journal_entry.entry);
