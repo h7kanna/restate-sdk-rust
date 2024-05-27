@@ -29,6 +29,8 @@ restate dp add --yes http://localhost:3000
 restate dp add --yes --force http://localhost:3000
 
 curl -v localhost:8080/Greeter/greet -H 'content-type: application/json' -d '{"test": "test"}'
+
+curl -v localhost:8080/Service/service -H 'content-type: application/json' -d '{"test": "test"}'
 ```
 
 ```shell

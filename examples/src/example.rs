@@ -62,14 +62,18 @@ mod bundle {
         #[restate::handler]
         pub async fn service(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             let output = ctx.simple_service_client().greet(name.clone()).await?;
+            println!("Simple service output {:?}", output);
             // Calling ourselves
             let output = ctx.service_client().greet(name.clone()).await?;
+            println!("Self greet output {:?}", output);
             Ok(ExecOutput { test: output.test })
         }
 
         #[restate::handler]
         pub async fn greet(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            Ok(ExecOutput { test: name.test })
+            Ok(ExecOutput {
+                test: format!("success result {}", name.test),
+            })
         }
     }
 }

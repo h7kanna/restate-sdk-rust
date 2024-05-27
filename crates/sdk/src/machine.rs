@@ -105,18 +105,6 @@ impl StateMachine {
         };
     }
 
-    pub fn handle_runtime_message(&mut self, message: ProtocolMessage) -> Bytes {
-        match message {
-            ProtocolMessage::Completion(completion) => {
-                self.journal.handle_runtime_completion_message(completion);
-            }
-            _ => {
-                // Error
-            }
-        }
-        Bytes::new()
-    }
-
     pub fn handle_user_code_message(
         &mut self,
         entry_index: u32,
@@ -128,7 +116,80 @@ impl StateMachine {
             .journal
             .handle_user_code_message(entry_index, message.clone(), waker);
         if result.is_none() {
-            //self.send(message);
+            match &message {
+                Entry::Input(_) => {}
+                Entry::Output(_) => {}
+                Entry::GetState(_) => {}
+                Entry::SetState(_) => {}
+                Entry::ClearState(_) => {}
+                Entry::GetStateKeys(_) => {}
+                Entry::ClearAllState => {}
+                Entry::GetPromise(_) => {}
+                Entry::PeekPromise(_) => {}
+                Entry::CompletePromise(_) => {}
+                Entry::Sleep(sleep) => {
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::Sleep { is_completed: false },
+                            service_protocol::SleepEntryMessage {
+                                wake_up_time: sleep.wake_up_time,
+                                name: "".to_string(),
+                                result: None,
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
+                Entry::Call(call) => {
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::Call {
+                                is_completed: false,
+                                enrichment_result: None,
+                            },
+                            service_protocol::CallEntryMessage {
+                                service_name: call.request.service_name.to_string(),
+                                handler_name: call.request.handler_name.to_string(),
+                                parameter: call.request.parameter.clone(),
+                                headers: vec![],
+                                key: call.request.key.to_string(),
+                                name: "".to_string(),
+                                result: None,
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
+                Entry::OneWayCall(one_way) => {
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::OneWayCall {
+                                enrichment_result: (),
+                            },
+                            service_protocol::OneWayCallEntryMessage {
+                                service_name: one_way.request.service_name.to_string(),
+                                handler_name: one_way.request.handler_name.to_string(),
+                                parameter: one_way.request.parameter.clone(),
+                                invoke_time: one_way.invoke_time,
+                                headers: vec![],
+                                key: one_way.request.key.to_string(),
+                                name: "".to_string(),
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
+                Entry::Awakeable(_) => {}
+                Entry::CompleteAwakeable(_) => {}
+                Entry::Run(_) => {}
+                Entry::Custom(_) => {}
+            }
             None
         } else {
             println!("There  index {:?}, result: {:?}", entry_index, result);

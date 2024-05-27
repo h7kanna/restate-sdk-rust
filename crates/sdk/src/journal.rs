@@ -89,37 +89,46 @@ impl Journal {
     pub fn handle_user_code_message(
         &mut self,
         entry_index: u32,
-        message: Entry,
+        entry: Entry,
         waker: Waker,
     ) -> Option<Bytes> {
         if entry_index != self.get_user_code_journal_index() {
             self.increment_user_code_index();
             match self.state {
                 NewExecutionState::REPLAYING => {
-                    if let Some(replay_entry) =
-                        self.invocation.replay_entries.get(&self.user_code_journal_index)
+                    if let Some((_, replay_entry)) = self
+                        .invocation
+                        .replay_entries
+                        .remove(&self.user_code_journal_index)
                     {
                         let journal_entry = JournalEntry {
-                            entry: message,
+                            entry,
                             waker: Some(waker),
                         };
-                        let replay_message = replay_entry.clone();
-                        return self.handle_replay(entry_index, replay_message, journal_entry);
+                        return self.handle_replay(entry_index, replay_entry, journal_entry);
                     } else {
                         // Illegal
                     }
                 }
-                NewExecutionState::PROCESSING => self.handle_processing(entry_index, message, waker),
+                NewExecutionState::PROCESSING => self.handle_processing(entry_index, entry, waker),
                 NewExecutionState::CLOSED => {}
             }
         }
         None
     }
 
-    fn handle_replay(&self, entry_index: u32, replay_entry: Entry, entry: JournalEntry) -> Option<Bytes> {
+    fn handle_replay(&mut self, entry_index: u32, replay_entry: Entry, entry: JournalEntry) -> Option<Bytes> {
         match replay_entry {
             Entry::Input(_) => {}
-            Entry::Output(_) => {}
+            Entry::Output(output) => {
+                self.handle_output_message(entry_index);
+                match output.result {
+                    EntryResult::Success(success) => {
+                        return Some(success);
+                    }
+                    EntryResult::Failure(_, _) => {}
+                }
+            }
             Entry::GetState(_) => {}
             Entry::SetState(_) => {}
             Entry::ClearState(_) => {}
@@ -146,10 +155,12 @@ impl Journal {
         None
     }
 
-    fn handle_processing(&self, entry_index: u32, message: Entry, waker: Waker) {
+    fn handle_processing(&mut self, entry_index: u32, message: Entry, waker: Waker) {
         match message {
             Entry::Input(_) => {}
-            Entry::Output(_) => {}
+            Entry::Output(_) => {
+                self.handle_output_message(entry_index);
+            }
             Entry::GetState(_) => {}
             Entry::SetState(_) => {}
             Entry::ClearState(_) => {}
@@ -201,10 +212,15 @@ impl Journal {
         }
     }
 
-    pub fn append_entry(&self, message: Entry, waker: Waker) {
+    fn handle_output_message(&mut self, entry_index: u32) {
+        self.transition_state(NewExecutionState::CLOSED);
+        self.pending_entries.remove(&0);
+    }
+
+    pub fn append_entry(&self, entry: Entry, waker: Waker) {
         self.pending_entries
             .insert(self.user_code_journal_index, JournalEntry {
-                entry: message,
+                entry,
                 waker: Some(waker),
             });
     }
