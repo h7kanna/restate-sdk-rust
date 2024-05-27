@@ -186,17 +186,20 @@ impl Journal {
     pub fn handle_runtime_completion_message(&self, message: CompletionMessage) {
         let journal_entry = self.pending_entries.get_mut(&message.entry_index);
         if let Some(mut journal_entry) = journal_entry {
+            println!("Journal runtime message entry: {:?}", journal_entry);
             match message.result {
                 Some(result) => match result {
                     completion_message::Result::Empty(_) => {}
                     completion_message::Result::Value(value) => {
                         info!("{:?}", value);
+                        println!("Journal runtime message value: {:?}", value);
                     }
                     completion_message::Result::Failure(_) => {}
                 },
                 None => {}
             }
             if let Some(mut waker) = journal_entry.waker.take() {
+                println!("Journal runtime waking up: {:?}", journal_entry.entry);
                 waker.wake();
             }
         } else {

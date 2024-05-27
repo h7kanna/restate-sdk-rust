@@ -48,6 +48,7 @@ pub async fn handle_invocation<F, I, R>(
 
     let token = CancellationToken::new();
     let token2 = token.clone();
+    let token3 = token.clone();
 
     // step 3: create connection stream consumer
     tokio::spawn(async move {
@@ -57,30 +58,42 @@ pub async fn handle_invocation<F, I, R>(
         loop {
             tokio::select! {
                 _ = token.cancelled() => {
-
+                    break;
                 }
                 message = receiver.recv() => {
                    if let Some(message) = message {
                        let mut message_consumer = message_consumer.lock();
-                        println!("Stream consumption completed");
                         message_consumer.handle_message(message);
                     }
                 }
             }
         }
+        println!("Stream consumption completed");
     });
 
     // step 4: create suspension stream consumer
     tokio::spawn(async move {
         let suspension_consumer = suspension_consumer;
-        while let Some(message) = suspension_rx.recv().await {
-            println!("scheduling suspension: {:?}", message);
-            suspension_consumer.lock().suspend();
+        let token = token3;
+        loop {
+            tokio::select! {
+                _ = token.cancelled() => {
+                    break;
+                }
+                message = suspension_rx.recv() => {
+                   if let Some(message) = message {
+                       println!("scheduling suspension: {:?}", message);
+                        suspension_consumer.lock().suspend();
+                    }
+                }
+            }
         }
+        println!("Suspension task completed");
     });
 
     // step 5: invoke the function
-    StateMachine::invoke(handler, state_machine).await
+    StateMachine::invoke(handler, state_machine).await;
+    token.cancel();
 }
 
 #[cfg(test)]

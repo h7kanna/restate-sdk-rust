@@ -39,10 +39,10 @@ impl<T> Future for CallService<T> {
             Entry::Call(self.invoke_entry.clone()),
             cx.waker().clone(),
         ) {
-            println!("Result ready");
+            println!("Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
         } else {
-            println!("Result pending");
+            println!("Result pending for entry: {}", self.entry_index);
             Poll::Pending
         }
     }

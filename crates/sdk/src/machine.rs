@@ -84,9 +84,10 @@ impl StateMachine {
                     .into(),
                 )
                 .into();
-                println!("Invocation output:  {:?}", output);
                 let mut state_machine = state_machine.lock();
+                println!("Invocation output:  {:?}", output);
                 state_machine.send(output);
+                println!("Invocation end");
                 state_machine.send(ProtocolMessage::End(service_protocol::EndMessage {}));
             }
             Err(err) => {
@@ -214,6 +215,7 @@ impl StateMachine {
 
 impl RestateStreamConsumer for MutexGuard<'_, StateMachine> {
     fn handle_message(&mut self, message: (MessageType, ProtocolMessage)) -> bool {
+        println!("Machine runtime message handler: {:?}", message);
         if self.machine_closed {
             return false;
         }

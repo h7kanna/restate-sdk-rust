@@ -74,7 +74,7 @@ pub fn setup_connection(
                 match decoder.consume_next() {
                     Ok(result) => {
                         if let Some((header, message)) = result {
-                            println!("Header: {:?}, Message: {:?}", header, message);
+                            //println!("Header: {:?}, Message: {:?}", header, message);
                             if let Err(err) = inbound_tx.send((header.message_type(), message)) {
                                 println!("Send failed {}", err);
                             }
@@ -86,6 +86,7 @@ pub fn setup_connection(
                 }
             };
         }
+        println!("HTTP request stream closed");
     });
 
     // Setup outbound message buffer

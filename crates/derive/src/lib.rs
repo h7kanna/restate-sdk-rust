@@ -111,7 +111,10 @@ fn handler_methods(service: &Service) -> Vec<proc_macro2::TokenStream> {
            (&Method::POST, #route) => {
                 let (receiver, sender, boxed_body) = setup_connection(req);
                 tokio::spawn(
-                    async move { http2_handler::handle(crate::bundle::#service::#handler, receiver, sender).await },
+                    async move {
+                        http2_handler::handle(crate::bundle::#service::#handler, receiver, sender).await;
+                        println!("Invocation task completed");
+                    },
                 );
                 let response = Response::builder()
                     .status(StatusCode::OK)

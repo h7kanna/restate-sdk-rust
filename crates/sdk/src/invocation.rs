@@ -90,7 +90,7 @@ impl InvocationBuilder {
     fn deserialize_entry(&mut self, message: ProtocolMessage) -> Option<Entry> {
         if let ProtocolMessage::UnparsedEntry(raw_entry) = message {
             let expected_entry = raw_entry.deserialize_entry_ref::<ProtobufRawEntryCodec>();
-            println!("Entry received {:?}", expected_entry);
+            //println!("Entry received {:?}", expected_entry);
             //TODO: Handle error
             Some(expected_entry.unwrap())
         } else {
