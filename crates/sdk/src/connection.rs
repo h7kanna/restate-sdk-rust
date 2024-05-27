@@ -1,5 +1,4 @@
 use anyhow::anyhow;
-use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{pin_mut, Stream};
 use futures_util::{StreamExt, TryStreamExt};
@@ -15,104 +14,95 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 pub(crate) trait Sealed {}
 
-pub trait RestateStreamConsumer {
-    fn handle_message(&mut self, message: (MessageType, ProtocolMessage)) -> bool;
-}
-
-pub trait MessageReceiver: Send {
+pub trait MessageReceiver: Sealed + Send {
     fn recv(&mut self) -> impl Future<Output = Option<(MessageType, ProtocolMessage)>> + Send;
 }
 
-#[async_trait]
 pub trait MessageSender: Sealed + Send {
     fn send(&self, message: ProtocolMessage);
 }
 
-pub struct Http2Connection {
+pub trait RestateStreamConsumer {
+    fn handle_message(&mut self, message: (MessageType, ProtocolMessage)) -> bool;
+}
+
+pub struct Http2Receiver {
     inbound_rx: UnboundedReceiver<(MessageType, ProtocolMessage)>,
+}
+
+pub struct Http2Sender {
     outbound_tx: UnboundedSender<ProtocolMessage>,
 }
 
-impl Http2Connection {
-    pub fn new(
-        request: Request<hyper::body::Incoming>,
-    ) -> (Self, impl MessageSender, BoxBody<Bytes, anyhow::Error>) {
-        // Setup inbound message buffer
-        let frame_stream = http_body_util::BodyStream::new(
-            request
-                .into_body()
-                .map_frame(move |frame| frame)
-                .map_err(|_e| anyhow!("error"))
-                .boxed(),
-        );
+impl Sealed for Http2Receiver {}
 
-        let (inbound_tx, mut inbound_rx) = tokio::sync::mpsc::unbounded_channel();
-        tokio::spawn(async move {
-            let mut decoder = Decoder::new(ServiceProtocolVersion::V1, usize::MAX, None);
-            pin_mut!(frame_stream);
-            while let Some(Ok(frame)) = frame_stream.next().await {
-                if let Ok(data) = frame.into_data() {
-                    decoder.push(data);
-                    match decoder.consume_next() {
-                        Ok(result) => {
-                            if let Some((header, message)) = result {
-                                println!("Header: {:?}, Message: {:?}", header, message);
-                                if let Err(err) = inbound_tx.send((header.message_type(), message)) {
-                                    println!("Send failed {}", err);
-                                }
-                            }
-                        }
-                        Err(err) => {
-                            println!("decode error: {:?}", err);
-                        }
-                    }
-                };
-            }
-        });
-
-        // Setup outbound message buffer
-        let (outbound_tx, outbound_rx) = tokio::sync::mpsc::unbounded_channel();
-        let encoder = Encoder::new(ServiceProtocolVersion::V1);
-        let boxed_body = BodyExt::boxed(StreamBody::new(UnboundedReceiverStream::new(outbound_rx).map(
-            move |message| {
-                let result = encoder.encode(message);
-                Ok(Frame::data(result))
-            },
-        )));
-
-        let sender = Sender {
-            outbound_tx: outbound_tx.clone(),
-        };
-
-        (
-            Self {
-                inbound_rx,
-                outbound_tx,
-            },
-            sender,
-            boxed_body,
-        )
-    }
-}
-
-impl MessageReceiver for Http2Connection {
+impl MessageReceiver for Http2Receiver {
     async fn recv(&mut self) -> Option<(MessageType, ProtocolMessage)> {
         self.inbound_rx.recv().await
     }
 }
 
-struct Sender {
-    outbound_tx: UnboundedSender<ProtocolMessage>,
-}
+impl Sealed for Http2Sender {}
 
-impl Sealed for Sender {}
-
-impl MessageSender for Sender {
+impl MessageSender for Http2Sender {
     fn send(&self, message: ProtocolMessage) {
         if let Err(err) = self.outbound_tx.send(message) {
             println!("Outbound send error: {}", err);
         }
     }
+}
+
+pub fn setup_connection(
+    request: Request<hyper::body::Incoming>,
+) -> (Http2Receiver, Http2Sender, BoxBody<Bytes, anyhow::Error>) {
+    // Setup inbound message buffer
+    let frame_stream = http_body_util::BodyStream::new(
+        request
+            .into_body()
+            .map_frame(move |frame| frame)
+            .map_err(|_e| anyhow!("error"))
+            .boxed(),
+    );
+
+    let (inbound_tx, mut inbound_rx) = tokio::sync::mpsc::unbounded_channel();
+    tokio::spawn(async move {
+        let mut decoder = Decoder::new(ServiceProtocolVersion::V1, usize::MAX, None);
+        pin_mut!(frame_stream);
+        while let Some(Ok(frame)) = frame_stream.next().await {
+            if let Ok(data) = frame.into_data() {
+                decoder.push(data);
+                match decoder.consume_next() {
+                    Ok(result) => {
+                        if let Some((header, message)) = result {
+                            println!("Header: {:?}, Message: {:?}", header, message);
+                            if let Err(err) = inbound_tx.send((header.message_type(), message)) {
+                                println!("Send failed {}", err);
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        println!("decode error: {:?}", err);
+                    }
+                }
+            };
+        }
+    });
+
+    // Setup outbound message buffer
+    let (outbound_tx, outbound_rx) = tokio::sync::mpsc::unbounded_channel();
+    let encoder = Encoder::new(ServiceProtocolVersion::V1);
+    let boxed_body = BodyExt::boxed(StreamBody::new(UnboundedReceiverStream::new(outbound_rx).map(
+        move |message| {
+            let result = encoder.encode(message);
+            Ok(Frame::data(result))
+        },
+    )));
+
+    (
+        Http2Receiver { inbound_rx },
+        Http2Sender { outbound_tx },
+        boxed_body,
+    )
 }
 
 pub fn empty() -> BoxBody<Bytes, hyper::Error> {
@@ -125,7 +115,6 @@ pub fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
 
 #[cfg(test)]
 mod tests {
-
     #[test]
     fn test_connection() {}
 }

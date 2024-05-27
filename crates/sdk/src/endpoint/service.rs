@@ -1,4 +1,4 @@
-use crate::connection::{empty, full, Http2Connection, MessageSender};
+use crate::connection::{empty, full, setup_connection, Http2Receiver, MessageSender};
 use bytes::Bytes;
 use http::{Method, Request, Response, StatusCode};
 use http_body_util::{combinators::BoxBody, BodyExt};
@@ -58,7 +58,7 @@ async fn service(
                 println!("{:?}, {:?}", name, header);
             }
 
-            let (_, sender, boxed_body) = Http2Connection::new(req);
+            let (_, sender, boxed_body) = setup_connection(req);
 
             tokio::spawn(async move {
                 //tokio::time::sleep(Duration::from_secs(5)).await;
@@ -96,7 +96,7 @@ async fn service(
                 println!("{:?}, {:?}", name, header);
             }
 
-            let (_, sender, boxed_body) = Http2Connection::new(req);
+            let (_, sender, boxed_body) = setup_connection(req);
 
             tokio::spawn(async move {
                 tokio::time::sleep(Duration::from_secs(1)).await;

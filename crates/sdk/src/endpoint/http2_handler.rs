@@ -1,5 +1,5 @@
 use crate::{
-    connection::{Http2Connection, MessageReceiver, MessageSender, RestateStreamConsumer},
+    connection::{Http2Receiver, Http2Sender, MessageReceiver, MessageSender, RestateStreamConsumer},
     context::RestateContext,
     invocation::InvocationBuilder,
     machine::StateMachine,
@@ -10,19 +10,19 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-pub async fn handle<F, I, R>(handler: F, connection: Http2Connection, sender: impl MessageSender + 'static)
+pub async fn handle<F, I, R>(handler: F, receiver: Http2Receiver, sender: Http2Sender)
 where
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
     F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
 {
-    handle_invocation(handler, connection, sender).await
+    handle_invocation(handler, receiver, sender).await
 }
 
 pub async fn handle_invocation<F, I, R>(
     handler: F,
-    mut streamer: impl MessageReceiver + 'static,
-    sender: impl MessageSender + 'static,
+    mut receiver: impl MessageReceiver + 'static,
+    mut sender: impl MessageSender + 'static,
 ) where
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
@@ -31,7 +31,7 @@ pub async fn handle_invocation<F, I, R>(
     // step 1: collect all journal entries
     let mut builder = InvocationBuilder::new();
     loop {
-        if let Some(message) = streamer.recv().await {
+        if let Some(message) = receiver.recv().await {
             if builder.handle_message(message) {
                 break;
             }
@@ -59,7 +59,7 @@ pub async fn handle_invocation<F, I, R>(
                 _ = token.cancelled() => {
 
                 }
-                message = streamer.recv() => {
+                message = receiver.recv() => {
                    if let Some(message) = message {
                        let mut message_consumer = message_consumer.lock();
                         println!("Stream consumption completed");
@@ -102,6 +102,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
     use tracing_test::traced_test;
 
+    #[derive(Clone)]
     struct TestDriver {
         input_messages: VecDeque<(MessageType, ProtocolMessage)>,
         output_messages: UnboundedSender<ProtocolMessage>,
@@ -113,13 +114,13 @@ mod tests {
         }
     }
 
-    impl crate::connection::Sealed for TestDriver {}
-
     impl MessageSender for TestDriver {
         fn send(&self, message: ProtocolMessage) {
             self.output_messages.send(message).unwrap();
         }
     }
+
+    impl crate::connection::Sealed for TestDriver {}
 
     #[derive(Serialize, Deserialize)]
     pub struct ExecInput {
@@ -208,7 +209,7 @@ mod tests {
                 _ = token2.cancelled() => {
 
                 }
-                _ = handle_invocation(service_fn, connection) => {
+                _ = handle_invocation(service_fn, connection.clone(), connection.clone()) => {
 
                 }
             }

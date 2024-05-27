@@ -1,7 +1,7 @@
 use anyhow::Error;
 use restate::{
-    empty, endpoint::endpoint, full, http2_handler, BodyExt, BoxBody, Bytes, Http2Connection, Incoming,
-    Method, Request, Response, StatusCode,
+    empty, endpoint::endpoint, full, http2_handler, BodyExt, BoxBody, Bytes, Http2Receiver, Incoming, Method,
+    Request, Response, StatusCode,
 };
 
 #[restate::main]

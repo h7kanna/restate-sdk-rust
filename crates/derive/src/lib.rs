@@ -109,9 +109,9 @@ fn handler_methods(service: &Service) -> Vec<proc_macro2::TokenStream> {
         let handler = format_ident!("{}", handler);
         routes.push(quote!(
            (&Method::POST, #route) => {
-                let (http2conn, sender, boxed_body) = Http2Connection::new(req);
+                let (receiver, sender, boxed_body) = setup_connection(req);
                 tokio::spawn(
-                    async move { http2_handler::handle(crate::bundle::#service::#handler, http2conn, sender).await },
+                    async move { http2_handler::handle(crate::bundle::#service::#handler, receiver, sender).await },
                 );
                 let response = Response::builder()
                     .status(StatusCode::OK)

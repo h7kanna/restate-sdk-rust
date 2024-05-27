@@ -1,6 +1,6 @@
 use anyhow::Error;
 use restate::{
-    empty, endpoint::endpoint, full, http2_handler, BodyExt, BoxBody, Bytes, Http2Connection, Incoming,
+    empty, endpoint::endpoint, full, http2_handler, setup_connection, BodyExt, BoxBody, Bytes, Incoming,
     Method, Request, Response, StatusCode,
 };
 
