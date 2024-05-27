@@ -3,7 +3,7 @@ use bytes::Bytes;
 use dashmap::DashMap;
 use futures_util::task::waker;
 use restate_sdk_types::{
-    journal::{Entry, EntryResult, InputEntry},
+    journal::{Entry, EntryResult, InputEntry, SleepResult},
     service_protocol::{
         call_entry_message, completion_message, CompletionMessage, EntryAckMessage, InputEntryMessage,
     },
@@ -92,6 +92,11 @@ impl Journal {
         entry: Entry,
         waker: Waker,
     ) -> Option<Bytes> {
+        println!(
+            "Handle user code entry_index: {}, journal_index: {}",
+            entry_index,
+            self.get_user_code_journal_index()
+        );
         if entry_index != self.get_user_code_journal_index() {
             self.increment_user_code_index();
             match self.state {
@@ -112,6 +117,47 @@ impl Journal {
                 }
                 NewExecutionState::PROCESSING => self.handle_processing(entry_index, entry, waker),
                 NewExecutionState::CLOSED => {}
+            }
+        } else {
+            if let Some((_, pending)) = self.pending_entries.remove(&entry_index) {
+                match &pending.entry {
+                    Entry::Input(_) => {}
+                    Entry::Output(_) => {}
+                    Entry::GetState(_) => {}
+                    Entry::SetState(_) => {}
+                    Entry::ClearState(_) => {}
+                    Entry::GetStateKeys(_) => {}
+                    Entry::ClearAllState => {}
+                    Entry::GetPromise(_) => {}
+                    Entry::PeekPromise(_) => {}
+                    Entry::CompletePromise(_) => {}
+                    Entry::Sleep(sleep) => {
+                        if let Some(result) = sleep.result.as_ref() {
+                            match result {
+                                SleepResult::Fired => {
+                                    println!("Sleep fired for entry index: {}", entry_index);
+                                    return Some(Bytes::new());
+                                }
+                                SleepResult::Failure(_, _) => {}
+                            }
+                        }
+                    }
+                    Entry::Call(call) => {
+                        if let Some(result) = call.result.as_ref() {
+                            match result {
+                                EntryResult::Success(success) => {
+                                    return Some(success.clone());
+                                }
+                                EntryResult::Failure(_, _) => {}
+                            }
+                        }
+                    }
+                    Entry::OneWayCall(_) => {}
+                    Entry::Awakeable(_) => {}
+                    Entry::CompleteAwakeable(_) => {}
+                    Entry::Run(_) => {}
+                    Entry::Custom(_) => {}
+                }
             }
         }
         None
@@ -137,7 +183,16 @@ impl Journal {
             Entry::GetPromise(_) => {}
             Entry::PeekPromise(_) => {}
             Entry::CompletePromise(_) => {}
-            Entry::Sleep(_) => {}
+            Entry::Sleep(sleep) => {
+                if let Some(result) = sleep.result.as_ref() {
+                    match result {
+                        SleepResult::Fired => {
+                            return Some(Bytes::new());
+                        }
+                        SleepResult::Failure(_, _) => {}
+                    }
+                }
+            }
             Entry::Call(call) => {
                 if let Some(result) = call.result {
                     match result {
@@ -169,7 +224,9 @@ impl Journal {
             Entry::GetPromise(_) => {}
             Entry::PeekPromise(_) => {}
             Entry::CompletePromise(_) => {}
-            Entry::Sleep(_) => {}
+            entry @ Entry::Sleep(_) => {
+                self.append_entry(entry, waker);
+            }
             entry @ Entry::Call(_) => {
                 self.append_entry(entry, waker);
             }
@@ -193,6 +250,27 @@ impl Journal {
                     completion_message::Result::Value(value) => {
                         info!("{:?}", value);
                         println!("Journal runtime message value: {:?}", value);
+                        match &mut journal_entry.entry {
+                            Entry::Input(_) => {}
+                            Entry::Output(_) => {}
+                            Entry::GetState(_) => {}
+                            Entry::SetState(_) => {}
+                            Entry::ClearState(_) => {}
+                            Entry::GetStateKeys(_) => {}
+                            Entry::ClearAllState => {}
+                            Entry::GetPromise(_) => {}
+                            Entry::PeekPromise(_) => {}
+                            Entry::CompletePromise(_) => {}
+                            Entry::Sleep(sleep) => sleep.result = Some(SleepResult::Fired),
+                            Entry::Call(call) => {
+                                call.result = Some(EntryResult::Success(value));
+                            }
+                            Entry::OneWayCall(_) => {}
+                            Entry::Awakeable(_) => {}
+                            Entry::CompleteAwakeable(_) => {}
+                            Entry::Run(_) => {}
+                            Entry::Custom(_) => {}
+                        }
                     }
                     completion_message::Result::Failure(_) => {}
                 },

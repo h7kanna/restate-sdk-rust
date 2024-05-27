@@ -39,6 +39,8 @@ pub async fn handle_invocation<F, I, R>(
     }
     let invocation = builder.build();
 
+    println!("Invocation started {:?}", invocation.id);
+
     // step 2: create the state machine
     let (state_machine, mut suspension_rx) = StateMachine::new(Box::new(sender), invocation);
 

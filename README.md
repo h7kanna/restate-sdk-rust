@@ -35,5 +35,5 @@ curl -v localhost:8080/Service/service -H 'content-type: application/json' -d '{
 
 ```shell
 restate invocations list
-restate invocations cancel --yes inv_1edrEWkJnmse6PRDAW8yRiHQpnsgFfLaal
+restate invocations cancel --yes inv_1fc7cheTHBtE1FrX712RMJ6EXOf3AAePjb
 ```

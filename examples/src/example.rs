@@ -49,6 +49,7 @@ mod bundle {
 
         #[restate::handler]
         pub async fn greet(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+            println!("SimpleService: greet: input {:?}", name);
             Ok(ExecOutput { test: name.test })
         }
     }
@@ -61,7 +62,11 @@ mod bundle {
         #[async_recursion]
         #[restate::handler]
         pub async fn service(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+            println!("Service: service: input {:?}", name);
             let output = ctx.simple_service_client().greet(name.clone()).await?;
+            println!("Service: service: sleeping {:?}", name);
+            //ctx.sleep(5).await?;
+            println!("Service: service: woke up {:?}", name);
             println!("Simple service output {:?}", output);
             // Calling ourselves
             let output = ctx.service_client().greet(name.clone()).await?;
@@ -71,6 +76,7 @@ mod bundle {
 
         #[restate::handler]
         pub async fn greet(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+            println!("Service: greet: input {:?}", name);
             Ok(ExecOutput {
                 test: format!("success result {}", name.test),
             })

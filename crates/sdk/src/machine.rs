@@ -112,7 +112,9 @@ impl StateMachine {
         message: Entry,
         waker: Waker,
     ) -> Option<Bytes> {
-        if self.machine_closed {}
+        if self.machine_closed {
+            // Return fused
+        }
         let result = self
             .journal
             .handle_user_code_message(entry_index, message.clone(), waker);
@@ -129,6 +131,10 @@ impl StateMachine {
                 Entry::PeekPromise(_) => {}
                 Entry::CompletePromise(_) => {}
                 Entry::Sleep(sleep) => {
+                    println!(
+                        "Result does not exist for entry index {:?}, sending sleep message",
+                        entry_index
+                    );
                     self.send(
                         PlainRawEntry::new(
                             PlainEntryHeader::Sleep { is_completed: false },
@@ -193,7 +199,10 @@ impl StateMachine {
             }
             None
         } else {
-            println!("There  index {:?}, result: {:?}", entry_index, result);
+            println!(
+                "Result exists for entry index {:?}, result: {:?}",
+                entry_index, result
+            );
             result
         }
     }
