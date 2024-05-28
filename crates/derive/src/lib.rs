@@ -151,9 +151,11 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
             ImplItem::Const(_) => {}
             ImplItem::Fn(handler) => {
                 if handler.sig.asyncness.is_some() {
-                    println!("Handler {}", handler.sig.ident.to_string());
-                    let method = create_service_client_fn(service_name.clone(), handler);
-                    methods.push(method);
+                    if match_attribute("restate::handler", &handler.attrs) {
+                        println!("Handler {}", handler.sig.ident.to_string());
+                        let method = create_service_client_fn(service_name.clone(), handler);
+                        methods.push(method);
+                    }
                 }
             }
             _ => {
