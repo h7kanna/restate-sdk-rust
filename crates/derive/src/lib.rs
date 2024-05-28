@@ -6,7 +6,7 @@ use quote::{format_ident, quote};
 use restate_sdk_types::endpoint_manifest::{
     Endpoint, Handler, HandlerName, HandlerType, ProtocolMode, Service, ServiceName, ServiceType,
 };
-use syn::{Attribute, Expr, FnArg, ImplItem, ImplItemFn, Item, ItemFn, ItemImpl, Lit, Receiver, Type};
+use syn::{Attribute, Expr, FnArg, ImplItem, ImplItemFn, Item, ItemFn, ItemImpl, Lit, Pat, Receiver, Type};
 
 #[proc_macro_attribute]
 #[cfg(not(test))]
@@ -211,6 +211,18 @@ fn create_service_client_fn(service: proc_macro2::Ident, handler: &ImplItemFn) -
     });
     let service = service.to_string();
     let method = signature.ident.to_string();
+    let last = signature.inputs.last().unwrap();
+    let parameter = match last {
+        FnArg::Receiver(_) => {
+            panic!("There should be input");
+        }
+        FnArg::Typed(typed) => match *typed.pat {
+            Pat::Ident(ref ident) => ident.ident.to_string(),
+            _ => {
+                panic!("There should be input");
+            }
+        },
+    };
     // TODO: Lazy hack, remove this only use quote
     let block = format!(
         r#"{{
@@ -219,12 +231,12 @@ fn create_service_client_fn(service: proc_macro2::Ident, handler: &ImplItemFn) -
                 {}::{},
                 "{}".to_string(),
                 "{}".to_string(),
-                name,
+                {},
                 None,
             )
             .await
     }}"#,
-        service, method, service, method
+        service, method, service, method, parameter
     );
     client_fn.block = syn::parse_str(&block).unwrap();
     quote! (
