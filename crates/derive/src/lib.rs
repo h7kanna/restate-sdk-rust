@@ -6,7 +6,6 @@ use quote::{format_ident, quote};
 use restate_sdk_types::endpoint_manifest::{
     Endpoint, Handler, HandlerName, HandlerType, ProtocolMode, Service, ServiceName, ServiceType,
 };
-use std::{fs::File, io::Write};
 use syn::{Attribute, Expr, FnArg, ImplItem, ImplItemFn, Item, ItemFn, ItemImpl, Lit, Receiver, Type};
 
 #[proc_macro_attribute]
@@ -59,9 +58,12 @@ pub fn bundle(args: TokenStream, item: TokenStream) -> TokenStream {
 
     let manifest_json = serde_json::to_string(&manifest).unwrap();
 
+    /*
+    use std::{fs::File, io::Write};
     let mut file = File::create("manifest.json").expect("Unable to create manifest file");
     file.write_all(manifest_json.as_bytes())
         .expect("Unable to write manifest file");
+     */
 
     let methods = manifest
         .services
@@ -71,7 +73,7 @@ pub fn bundle(args: TokenStream, item: TokenStream) -> TokenStream {
 
     quote!(
         #endpoint
-        async fn service(req: Request<Incoming>) -> restate::Result<Response<BoxBody<Bytes, Error>>> {
+        pub async fn service(req: Request<Incoming>) -> restate::Result<Response<BoxBody<Bytes, Error>>> {
             match (req.method(), req.uri().path()) {
                 (&Method::POST, "/discover") => {
                     let manifest = #manifest_json;
