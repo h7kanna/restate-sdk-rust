@@ -74,6 +74,10 @@ pub fn bundle(args: TokenStream, item: TokenStream) -> TokenStream {
 
     quote!(
         #endpoint
+        use restate::{
+            empty, full, http2_handler, setup_connection, BodyExt, BoxBody, Bytes, Incoming, Method, Request,
+            Response, StatusCode,
+        };
         pub async fn service(req: Request<Incoming>) -> restate::Result<Response<BoxBody<Bytes, anyhow::Error>>> {
             match (req.method(), req.uri().path()) {
                 (&Method::POST, "/discover") => {

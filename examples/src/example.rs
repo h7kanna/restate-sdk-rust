@@ -1,8 +1,4 @@
-use anyhow::Error;
-use restate::{
-    empty, endpoint::endpoint, full, http2_handler, setup_connection, BodyExt, BoxBody, Bytes, Incoming,
-    Method, Request, Response, StatusCode,
-};
+use restate::endpoint;
 
 #[restate::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
