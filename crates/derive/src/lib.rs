@@ -30,6 +30,7 @@ pub fn bundle(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut services = vec![];
     match &endpoint {
         Item::Mod(module) => {
+            println!("Module path {:?}", module.ident.to_string());
             if let Some((_, items)) = &module.content {
                 for item in items {
                     match item {
@@ -114,7 +115,7 @@ fn handler_methods(service: &Service) -> Vec<proc_macro2::TokenStream> {
                 let (receiver, sender, boxed_body) = setup_connection(req);
                 tokio::spawn(
                     async move {
-                        http2_handler::handle(crate::bundle::#service::#handler, receiver, sender).await;
+                        http2_handler::handle(bundle::#service::#handler, receiver, sender).await;
                         println!("Invocation task completed");
                     },
                 );
