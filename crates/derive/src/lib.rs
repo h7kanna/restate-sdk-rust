@@ -74,7 +74,7 @@ pub fn bundle(args: TokenStream, item: TokenStream) -> TokenStream {
 
     quote!(
         #endpoint
-        pub async fn service(req: Request<Incoming>) -> restate::Result<Response<BoxBody<Bytes, Error>>> {
+        pub async fn service(req: Request<Incoming>) -> restate::Result<Response<BoxBody<Bytes, anyhow::Error>>> {
             match (req.method(), req.uri().path()) {
                 (&Method::POST, "/discover") => {
                     let manifest = #manifest_json;
