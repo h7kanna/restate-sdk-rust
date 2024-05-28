@@ -6,7 +6,10 @@ use quote::{format_ident, quote};
 use restate_sdk_types::endpoint_manifest::{
     Endpoint, Handler, HandlerName, HandlerType, ProtocolMode, Service, ServiceName, ServiceType,
 };
-use syn::{Attribute, Expr, FnArg, ImplItem, ImplItemFn, Item, ItemFn, ItemImpl, Lit, Pat, Receiver, Type};
+use syn::{
+    parse_quote, token::Brace, Attribute, Block, Expr, FnArg, ImplItem, ImplItemFn, Item, ItemFn, ItemImpl,
+    Lit, Pat, Receiver, Stmt, Type,
+};
 
 #[proc_macro_attribute]
 #[cfg(not(test))]
@@ -218,36 +221,39 @@ fn create_service_client_fn(service: proc_macro2::Ident, handler: &ImplItemFn) -
         colon_token: None,
         ty: Box::new(Type::Verbatim(quote!(Self))),
     });
-    let service = service.to_string();
-    let method = signature.ident.to_string();
+    let method = &signature.ident;
     let last = signature.inputs.last().unwrap();
     let parameter = match last {
         FnArg::Receiver(_) => {
             panic!("There should be input");
         }
         FnArg::Typed(typed) => match *typed.pat {
-            Pat::Ident(ref ident) => ident.ident.to_string(),
+            Pat::Ident(ref ident) => &ident.ident,
             _ => {
                 panic!("There should be input");
             }
         },
     };
-    // TODO: Lazy hack, remove this only use quote
-    let block = format!(
-        r#"{{
+
+    let service_literal = service.to_string();
+    let method_literal = method.to_string();
+    let stmts: Vec<Stmt> = parse_quote!(
         self.ctx
             .invoke(
-                {}::{},
-                "{}".to_string(),
-                "{}".to_string(),
-                {},
+                #service::#method,
+                #service_literal.to_string(),
+                #method_literal.to_string(),
+                #parameter,
                 None,
             )
             .await
-    }}"#,
-        service, method, service, method, parameter
     );
-    client_fn.block = syn::parse_str(&block).unwrap();
+
+    client_fn.block = Block {
+        brace_token: Brace::default(),
+        stmts,
+    };
+
     quote! (
         #client_fn
     )

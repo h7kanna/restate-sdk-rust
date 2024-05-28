@@ -37,3 +37,10 @@ curl -v localhost:8080/Service/service -H 'content-type: application/json' -d '{
 restate invocations list
 restate invocations cancel --yes inv_1fc7cheTHBtE1FrX712RMJ6EXOf3AAePjb
 ```
+
+```shell
+
+"SELECT * FROM sys_journal sj WHERE sj.id = 'inv_1hToYd2g2vuP6cT0mtYbbCJTiDqKuZdNcJ' ORDER BY index LIMIT 1000"
+
+```
+

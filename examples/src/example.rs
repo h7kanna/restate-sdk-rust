@@ -43,7 +43,7 @@ mod bundle {
             println!("Service: service: input {:?}", name);
             let output = ctx.simple_service_client().greet(name.clone()).await?;
             println!("Service: service: sleeping {:?}", name);
-            ctx.sleep(5000).await?;
+            ctx.sleep(30000).await?;
             println!("Service: service: woke up {:?}", name);
             println!("Simple service output {:?}", output);
             // Calling ourselves
