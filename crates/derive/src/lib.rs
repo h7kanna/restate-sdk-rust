@@ -189,7 +189,11 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
                 #service_client { ctx: &self }
             }
         }
-        impl ServiceHandler for #service_name {
+    )
+    .into()
+
+    /*
+    impl ServiceHandler for #service_name {
             fn name(&self) -> &'static str {
                 Self::NAME
             }
@@ -198,8 +202,7 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
                 &["service", "greet"]
             }
         }
-    )
-    .into()
+     */
 }
 
 fn create_service_client_fn(service: proc_macro2::Ident, handler: &ImplItemFn) -> proc_macro2::TokenStream {

@@ -2,29 +2,11 @@ use restate::endpoint;
 
 #[restate::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /*
-    let ingress = HttpIngress {};
-    let service_client = ingress.simple_service_client();
-    let o = service_client.greet(ExecInput { test: "".to_string() }).await?;
-    */
-
-    //endpoint_fn(SimpleService);
-    //endpoint_fn(Service);
     endpoint(service).await
-}
-
-trait ServiceHandler {
-    fn name(&self) -> &'static str;
-    fn handlers(&self) -> &'static [&'static str];
-}
-
-fn endpoint_fn<T: ServiceHandler>(service: T) {
-    println!("handlers {:?}", service.handlers());
 }
 
 #[restate::bundle]
 mod bundle {
-    use super::ServiceHandler;
     use restate::{async_recursion, Context};
     use serde::{Deserialize, Serialize};
 
