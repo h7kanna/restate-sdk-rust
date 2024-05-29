@@ -57,7 +57,7 @@ tokio-util = { version = "0.7.11", features = ["full"] }
 tokio-test = { version = "0.4.4" }
 tracing = "0.1"
 tracing-futures = "0.2"
-tracing-opentelemetry = "0.23.0"
+tracing-opentelemetry = "0.24.0"
 url = "2.5.0"
 
 [workspace.lints.rust]
