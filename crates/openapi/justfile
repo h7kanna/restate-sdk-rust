@@ -1,0 +1,12 @@
+NAME := "openapi"
+ORG := "denote-dev"
+VERSION := `git rev-parse HEAD`
+
+default:
+  @just --list --unsorted --color=always | rg -v "    default"
+
+yq:
+  @yq -P '.' spec/openapi.json > spec/restate.yaml
+
+generate:
+  @openapi-generator generate -i spec/restate.yaml -g rust -o .

@@ -4,6 +4,7 @@ members = [
     "crates/client",
     "crates/core",
     "crates/derive",
+    "crates/openapi",
     "crates/sdk",
     "crates/service-protocol",
     "crates/test-utils",
