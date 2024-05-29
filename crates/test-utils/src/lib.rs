@@ -14,12 +14,12 @@ use arrow_convert::{
 };
 use bytes::{Buf, Bytes};
 use chrono::{DateTime, Local, TimeZone};
-use reqwest::Method;
-use restate_sdk_types::journal::{
+use reqwest::{Client, Method, RequestBuilder};
+pub use restate_sdk_types::journal::{
     raw::{PlainEntryHeader, PlainRawEntry},
     EntryType,
 };
-use restate_service_protocol::message::{MessageType, ProtocolMessage};
+pub use restate_service_protocol::message::{MessageType, ProtocolMessage};
 use serde::Serialize;
 use std::{collections::VecDeque, fmt::Display, fs, path::Path, time::Duration};
 use thiserror::Error;
@@ -37,11 +37,11 @@ pub enum Error {
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub struct SqlQueryRequest {
+struct SqlQueryRequest {
     pub query: String,
 }
 
-pub struct SqlResponse {
+struct SqlResponse {
     pub schema: SchemaRef,
     pub batches: Vec<RecordBatch>,
 }
@@ -86,11 +86,14 @@ struct JournalRowResult {
     raw: Option<Vec<u8>>,
 }
 
-pub struct TestRestateServer {}
+pub struct TestRestateServer {
+    raw_client: Client,
+    request_builder: RequestBuilder,
+}
 
 impl TestRestateServer {
-    async fn run_query(&self, invocation_id: String) -> Result<SqlResponse, Error> {
-        let raw_client = reqwest::Client::builder()
+    pub async fn new(admin_url: String) -> Result<Self, Error> {
+        let raw_client = Client::builder()
             .user_agent(format!(
                 "{}/{} {}-{}",
                 env!("CARGO_PKG_NAME"),
@@ -101,10 +104,17 @@ impl TestRestateServer {
             .connect_timeout(Duration::from_secs(30))
             .build()?;
 
-        let client = raw_client
+        let request_builder = raw_client
             .request(Method::POST, "http://localhost:9070/query")
             .timeout(Duration::from_secs(30));
 
+        Ok(Self {
+            raw_client,
+            request_builder,
+        })
+    }
+
+    async fn run_query(&self, invocation_id: String) -> Result<SqlResponse, Error> {
         let query = format!(
             "SELECT
             sj.index,
@@ -119,7 +129,13 @@ impl TestRestateServer {
             invocation_id, 100,
         );
 
-        let response = client.json(&SqlQueryRequest { query }).send().await?;
+        let response = self
+            .request_builder
+            .try_clone()
+            .unwrap()
+            .json(&SqlQueryRequest { query })
+            .send()
+            .await?;
 
         let payload = response.bytes().await?.reader();
         let reader = StreamReader::try_new(payload, None)?;
@@ -257,9 +273,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_query() {
-        let invocation_id = "inv_1aNU9mihpGN23wEevCS1wmKBNrVDZ1X8Bj";
+        let invocation_id = "inv_1hh024ttZZPP0Y3c07qGvo8cqy9BETMa4N";
         let output_file = false;
-        let test_server = TestRestateServer {};
+        let test_server = TestRestateServer::new("".to_string()).await.unwrap();
         let journal = test_server.journal_to_protocol(invocation_id.to_owned()).await;
     }
 }
