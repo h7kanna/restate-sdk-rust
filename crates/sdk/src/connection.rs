@@ -46,7 +46,8 @@ impl Sealed for MockHttp2Sender {}
 
 impl MessageSender for MockHttp2Sender {
     fn send(&self, message: ProtocolMessage) {
-        self.outbound_tx.send(message).unwrap();
+        // Ignore the mock output
+        let _ = self.outbound_tx.send(message);
     }
 }
 
