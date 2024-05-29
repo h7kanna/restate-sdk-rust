@@ -50,7 +50,7 @@ tracing = { workspace = true }
 tracing-futures = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["parking_lot", "env-filter", "registry"] }
-url = "2.5.0"
+url = { workspace = true }
 uuid = { version = "1.8.0", features = ["v4"] }
 
 [dev-dependencies]

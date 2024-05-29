@@ -40,7 +40,7 @@ restate invocations cancel --yes inv_1fc7cheTHBtE1FrX712RMJ6EXOf3AAePjb
 
 ```shell
 
-"SELECT * FROM sys_journal sj WHERE sj.id = 'inv_1hToYd2g2vuP6cT0mtYbbCJTiDqKuZdNcJ' ORDER BY index LIMIT 1000"
+curl -v localhost:9070/query -H 'content-type: application/json' -d "{ \"query\" : \"SELECT * FROM sys_journal sj WHERE sj.id = 'inv_1b3ZbyPDEvc85opwOyw39cwtduHjN88ZUt' ORDER BY index LIMIT 1000\" }"
 
 ```
 
