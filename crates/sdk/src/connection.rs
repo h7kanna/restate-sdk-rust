@@ -8,7 +8,7 @@ use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full, StreamBody};
 use prost::Message;
 use restate_sdk_types::service_protocol::ServiceProtocolVersion;
 use restate_service_protocol::message::{Decoder, Encoder, MessageType, ProtocolMessage};
-use std::future::Future;
+use std::{collections::VecDeque, future::Future};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
@@ -24,6 +24,45 @@ pub trait MessageSender: Sealed + Send {
 
 pub trait RestateStreamConsumer {
     fn handle_message(&mut self, message: (MessageType, ProtocolMessage)) -> bool;
+}
+
+pub struct MockHttp2Receiver {
+    inbound_rx: VecDeque<(MessageType, ProtocolMessage)>,
+}
+
+pub struct MockHttp2Sender {
+    outbound_tx: UnboundedSender<ProtocolMessage>,
+}
+
+impl Sealed for MockHttp2Receiver {}
+
+impl MessageReceiver for MockHttp2Receiver {
+    async fn recv(&mut self) -> Option<(MessageType, ProtocolMessage)> {
+        self.inbound_rx.pop_front()
+    }
+}
+
+impl Sealed for MockHttp2Sender {}
+
+impl MessageSender for MockHttp2Sender {
+    fn send(&self, message: ProtocolMessage) {
+        self.outbound_tx.send(message).unwrap();
+    }
+}
+
+pub fn setup_mock_connection(
+    inbound_rx: VecDeque<(MessageType, ProtocolMessage)>,
+) -> (
+    MockHttp2Receiver,
+    MockHttp2Sender,
+    UnboundedReceiver<ProtocolMessage>,
+) {
+    let (outbound_tx, outbound_rx) = tokio::sync::mpsc::unbounded_channel();
+    (
+        MockHttp2Receiver { inbound_rx },
+        MockHttp2Sender { outbound_tx },
+        outbound_rx,
+    )
 }
 
 pub struct Http2Receiver {

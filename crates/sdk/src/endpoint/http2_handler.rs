@@ -102,7 +102,7 @@ pub async fn handle_invocation<F, I, R>(
 mod tests {
     use super::*;
     use crate::{
-        connection::{MessageSender, RestateStreamConsumer},
+        connection::{setup_mock_connection, MessageSender, RestateStreamConsumer},
         context::RestateContext,
     };
     use prost::Message;
@@ -117,25 +117,6 @@ mod tests {
     use tokio_util::sync::CancellationToken;
     use tracing_test::traced_test;
 
-    #[derive(Clone)]
-    struct TestDriver {
-        input_messages: VecDeque<(MessageType, ProtocolMessage)>,
-        output_messages: UnboundedSender<ProtocolMessage>,
-    }
-
-    impl MessageReceiver for TestDriver {
-        async fn recv(&mut self) -> Option<(MessageType, ProtocolMessage)> {
-            self.input_messages.pop_front()
-        }
-    }
-
-    impl MessageSender for TestDriver {
-        fn send(&self, message: ProtocolMessage) {
-            self.output_messages.send(message).unwrap();
-        }
-    }
-
-    impl crate::connection::Sealed for TestDriver {}
 
     #[derive(Serialize, Deserialize)]
     pub struct ExecInput {
@@ -164,66 +145,61 @@ mod tests {
     #[traced_test]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_handle_connection() {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel();
-        let connection = TestDriver {
-            input_messages: VecDeque::from([
-                (
-                    MessageType::Start,
-                    ProtocolMessage::Start(restate_sdk_types::service_protocol::StartMessage {
-                        id: Default::default(),
-                        debug_id: "".to_string(),
-                        known_entries: 2,
-                        state_map: vec![],
-                        partial_state: false,
+        let (receiver, sender, mut output_rx) = setup_mock_connection(VecDeque::from([
+            (
+                MessageType::Start,
+                ProtocolMessage::Start(restate_sdk_types::service_protocol::StartMessage {
+                    id: Default::default(),
+                    debug_id: "".to_string(),
+                    known_entries: 2,
+                    state_map: vec![],
+                    partial_state: false,
+                    key: "".to_string(),
+                }),
+            ),
+            (
+                MessageType::InputEntry,
+                PlainRawEntry::new(
+                    PlainEntryHeader::Input,
+                    restate_sdk_types::service_protocol::InputEntryMessage {
+                        headers: vec![],
+                        value: "{\"name\":\"test\"}".into(),
+                        name: "".to_string(),
+                    }
+                    .encode_to_vec()
+                    .into(),
+                )
+                .into(),
+            ),
+            (
+                MessageType::InvokeEntry,
+                PlainRawEntry::new(
+                    PlainEntryHeader::Call {
+                        is_completed: false,
+                        enrichment_result: None,
+                    },
+                    restate_sdk_types::service_protocol::CallEntryMessage {
+                        service_name: "".to_string(),
+                        handler_name: "".to_string(),
+                        parameter: "{\"name\":\"test\"}".into(),
+                        headers: vec![],
+                        name: "".to_string(),
                         key: "".to_string(),
-                    }),
-                ),
-                (
-                    MessageType::InputEntry,
-                    PlainRawEntry::new(
-                        PlainEntryHeader::Input,
-                        restate_sdk_types::service_protocol::InputEntryMessage {
-                            headers: vec![],
-                            value: "{\"name\":\"test\"}".into(),
-                            name: "".to_string(),
-                        }
-                        .encode_to_vec()
-                        .into(),
-                    )
+                        result: Some(call_entry_message::Result::Value("{\"status\":\"test\"}".into())),
+                    }
+                    .encode_to_vec()
                     .into(),
-                ),
-                (
-                    MessageType::InvokeEntry,
-                    PlainRawEntry::new(
-                        PlainEntryHeader::Call {
-                            is_completed: false,
-                            enrichment_result: None,
-                        },
-                        restate_sdk_types::service_protocol::CallEntryMessage {
-                            service_name: "".to_string(),
-                            handler_name: "".to_string(),
-                            parameter: "{\"name\":\"test\"}".into(),
-                            headers: vec![],
-                            name: "".to_string(),
-                            key: "".to_string(),
-                            result: Some(call_entry_message::Result::Value("{\"status\":\"test\"}".into())),
-                        }
-                        .encode_to_vec()
-                        .into(),
-                    )
-                    .into(),
-                ),
-            ]),
-            output_messages: output_tx,
-        };
-        let connection2 = connection.clone();
+                )
+                .into(),
+            ),
+        ]));
 
         let handle = tokio::spawn(async move {
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_secs(10)) => {
 
                 }
-                _ = handle_invocation(service_fn, connection2.clone(), connection2) => {
+                _ = handle_invocation(service_fn, receiver, sender) => {
 
                 }
             }
@@ -245,8 +221,6 @@ mod tests {
             }
             println!("Invocation ---dfasd----->");
         });
-
-        drop(connection.output_messages);
 
         handle.await.unwrap();
     }

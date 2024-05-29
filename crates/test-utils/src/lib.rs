@@ -12,13 +12,16 @@ use arrow_convert::{
     field::ArrowField,
     ArrowDeserialize, ArrowField,
 };
-use bytes::Buf;
+use bytes::{Buf, Bytes};
 use chrono::{DateTime, Local, TimeZone};
 use reqwest::Method;
-use restate_sdk_types::journal::raw::{PlainEntryHeader, PlainRawEntry};
-use restate_service_protocol::message::ProtocolMessage;
+use restate_sdk_types::journal::{
+    raw::{PlainEntryHeader, PlainRawEntry},
+    EntryType,
+};
+use restate_service_protocol::message::{MessageType, ProtocolMessage};
 use serde::Serialize;
-use std::{fmt::Display, time::Duration};
+use std::{collections::VecDeque, fmt::Display, fs, path::Path, time::Duration};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -84,8 +87,6 @@ struct JournalRowResult {
 }
 
 pub struct TestRestateServer {}
-
-pub struct TestDriver {}
 
 impl TestRestateServer {
     async fn run_query(&self, invocation_id: String) -> Result<SqlResponse, Error> {
@@ -195,41 +196,70 @@ impl TestRestateServer {
         journal.reverse();
         journal
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use bytes::Bytes;
-    use std::{fs, path::Path};
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_query() {
-        let invocation_id = "inv_1llEAZMZzxgv6Sz2ZUQBSJmNCSnaqnVXQl";
-        let output_file = false;
-        let test_server = TestRestateServer {};
-        let journal = test_server.query_journal(invocation_id.to_owned()).await;
+    pub async fn journal_to_protocol(
+        &self,
+        invocation_id: String,
+    ) -> VecDeque<(MessageType, ProtocolMessage)> {
+        let journal = self.query_journal(invocation_id.clone()).await;
         println!("{:?}", journal);
-        let json = serde_json::to_string(&journal).unwrap();
 
+        let output_file = false;
+        let json = serde_json::to_string(&journal).unwrap();
         if output_file {
             let mut out_file = Path::new(".").to_path_buf();
             out_file.push("history.json");
             fs::write(out_file, json).unwrap();
         }
 
-        let journal = journal
+        let mut journal = journal
             .into_iter()
-            .map(|entry| ProtocolMessage::UnparsedEntry(entry))
-            .collect::<Vec<_>>();
+            .map(|entry| {
+                let message_type = match entry.header().as_entry_type() {
+                    EntryType::Input => MessageType::InputEntry,
+                    EntryType::Output => MessageType::OutputEntry,
+                    EntryType::GetState => MessageType::GetStateEntry,
+                    EntryType::SetState => MessageType::SetStateEntry,
+                    EntryType::ClearState => MessageType::ClearStateEntry,
+                    EntryType::GetStateKeys => MessageType::GetStateKeysEntry,
+                    EntryType::ClearAllState => MessageType::ClearAllStateEntry,
+                    EntryType::GetPromise => MessageType::GetPromiseEntry,
+                    EntryType::PeekPromise => MessageType::PeekPromiseEntry,
+                    EntryType::CompletePromise => MessageType::CompletePromiseEntry,
+                    EntryType::Sleep => MessageType::SleepEntry,
+                    EntryType::Call => MessageType::InvokeEntry,
+                    EntryType::OneWayCall => MessageType::BackgroundInvokeEntry,
+                    EntryType::Awakeable => MessageType::AwakeableEntry,
+                    EntryType::CompleteAwakeable => MessageType::CompleteAwakeableEntry,
+                    EntryType::Run => MessageType::SideEffectEntry,
+                    EntryType::Custom => MessageType::CustomEntry(0),
+                };
+                (message_type, ProtocolMessage::UnparsedEntry(entry))
+            })
+            .collect::<VecDeque<_>>();
         let start_message = ProtocolMessage::new_start_message(
-            Bytes::from(invocation_id),
-            invocation_id.to_string(),
+            Bytes::from(invocation_id.clone()),
+            invocation_id,
             None,
             journal.len() as u32,
             false,
             vec![],
         );
         println!("{:?}", start_message);
+        journal.push_front((MessageType::Start, start_message));
+        journal
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_query() {
+        let invocation_id = "inv_1aNU9mihpGN23wEevCS1wmKBNrVDZ1X8Bj";
+        let output_file = false;
+        let test_server = TestRestateServer {};
+        let journal = test_server.journal_to_protocol(invocation_id.to_owned()).await;
     }
 }

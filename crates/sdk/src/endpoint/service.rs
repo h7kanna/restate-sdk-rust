@@ -1,4 +1,4 @@
-use crate::connection::{empty, full, setup_connection, Http2Receiver, MessageSender};
+use crate::connection::{empty, full, setup_connection, MessageSender};
 use bytes::Bytes;
 use http::{Method, Request, Response, StatusCode};
 use http_body_util::{combinators::BoxBody, BodyExt};
