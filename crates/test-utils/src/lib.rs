@@ -15,7 +15,8 @@ use arrow_convert::{
 use bytes::Buf;
 use chrono::{DateTime, Local, TimeZone};
 use reqwest::Method;
-use restate_sdk_types::journal::EntryType;
+use restate_sdk_types::journal::raw::{PlainEntryHeader, PlainRawEntry};
+use restate_service_protocol::message::ProtocolMessage;
 use serde::Serialize;
 use std::{fmt::Display, time::Duration};
 use thiserror::Error;
@@ -78,6 +79,7 @@ arrow_convert::arrow_enable_vec_for_type!(RestateDateTime);
 struct JournalRowResult {
     index: Option<u32>,
     entry_type: Option<String>,
+    completed: Option<bool>,
     raw: Option<Vec<u8>>,
 }
 
@@ -86,7 +88,7 @@ pub struct TestRestateServer {}
 pub struct TestDriver {}
 
 impl TestRestateServer {
-    pub async fn run_query(&self, invocation_id: String) -> Result<SqlResponse, Error> {
+    async fn run_query(&self, invocation_id: String) -> Result<SqlResponse, Error> {
         let raw_client = reqwest::Client::builder()
             .user_agent(format!(
                 "{}/{} {}-{}",
@@ -103,14 +105,10 @@ impl TestRestateServer {
             .timeout(Duration::from_secs(30));
 
         let query = format!(
-            "SELECT * FROM sys_journal sj WHERE sj.id = '{}' ORDER BY index LIMIT 1000",
-            invocation_id
-        );
-
-        let query = format!(
             "SELECT
             sj.index,
             sj.entry_type,
+            sj.completed,
             sj.raw
         FROM sys_journal sj
         WHERE
@@ -134,7 +132,7 @@ impl TestRestateServer {
         Ok(SqlResponse { schema, batches })
     }
 
-    pub async fn run_query_and_map_results<T: ArrowDeserialize + ArrowField<Type = T> + 'static>(
+    async fn run_query_and_map_results<T: ArrowDeserialize + ArrowField<Type = T> + 'static>(
         &self,
         invocation_id: String,
     ) -> Result<impl Iterator<Item = T>, Error> {
@@ -156,50 +154,82 @@ impl TestRestateServer {
         }
         Ok(results.into_iter())
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use restate_sdk_types::journal::{raw::RawEntryCodec, Entry};
-    use restate_service_protocol::codec::ProtobufRawEntryCodec;
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_query() {
-        let invocation_id = "inv_13F4CrYOOGbN1HKesxBpxbiTJVbb46eQ25".to_string();
-        let test_server = TestRestateServer {};
-
-        let mut journal: Vec<Entry> = test_server
+    pub async fn query_journal(&self, invocation_id: String) -> Vec<PlainRawEntry> {
+        let mut journal = self
             .run_query_and_map_results::<JournalRowResult>(invocation_id)
             .await
             .unwrap()
             .map(|row| {
                 let index = row.index.expect("index");
-                let entry_type = match row.entry_type.expect("entry_type").as_str() {
-                    "Input" => EntryType::Input,
-                    "Output" => EntryType::Output,
-                    "GetState" => EntryType::GetState,
-                    "SetState" => EntryType::SetState,
-                    "ClearState" => EntryType::ClearState,
-                    "GetStateKeys" => EntryType::GetStateKeys,
-                    "ClearAllState" => EntryType::ClearAllState,
-                    "GetPromise" => EntryType::GetPromise,
-                    "PeekPromise" => EntryType::PeekPromise,
-                    "CompletePromise" => EntryType::CompletePromise,
-                    "Sleep" => EntryType::Sleep,
-                    "Call" => EntryType::Call,
-                    "OneWayCall" => EntryType::OneWayCall,
-                    "Awakeable" => EntryType::Awakeable,
-                    "Run" => EntryType::Run,
-                    t => EntryType::Custom,
+                let is_completed = row.completed.unwrap_or_default();
+                let header = match row.entry_type.expect("entry_type").as_str() {
+                    "Input" => PlainEntryHeader::Input,
+                    "Output" => PlainEntryHeader::Output,
+                    "GetState" => PlainEntryHeader::GetState { is_completed },
+                    "SetState" => PlainEntryHeader::SetState,
+                    "ClearState" => PlainEntryHeader::ClearState,
+                    "GetStateKeys" => PlainEntryHeader::GetStateKeys { is_completed },
+                    "ClearAllState" => PlainEntryHeader::ClearAllState,
+                    "GetPromise" => PlainEntryHeader::GetPromise { is_completed },
+                    "PeekPromise" => PlainEntryHeader::PeekPromise { is_completed },
+                    "CompletePromise" => PlainEntryHeader::CompletePromise { is_completed },
+                    "Sleep" => PlainEntryHeader::Sleep { is_completed },
+                    "Call" => PlainEntryHeader::Call {
+                        is_completed,
+                        enrichment_result: None,
+                    },
+                    "OneWayCall" => PlainEntryHeader::OneWayCall {
+                        enrichment_result: (),
+                    },
+                    "Awakeable" => PlainEntryHeader::Awakeable { is_completed },
+                    "CompleteAwakeable" => PlainEntryHeader::CompleteAwakeable {
+                        enrichment_result: (),
+                    },
+                    "Run" => PlainEntryHeader::Run,
+                    t => PlainEntryHeader::Custom { code: 0 },
                 };
-                ProtobufRawEntryCodec::deserialize(entry_type.clone(), row.raw.unwrap().into()).unwrap()
+                PlainRawEntry::new(header, row.raw.unwrap().into())
             })
-            .collect();
-
-        // Sort by seq.
+            .collect::<Vec<_>>();
         journal.reverse();
+        journal
+    }
+}
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use std::{fs, path::Path};
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_query() {
+        let invocation_id = "inv_1llEAZMZzxgv6Sz2ZUQBSJmNCSnaqnVXQl";
+        let output_file = false;
+        let test_server = TestRestateServer {};
+        let journal = test_server.query_journal(invocation_id.to_owned()).await;
         println!("{:?}", journal);
+        let json = serde_json::to_string(&journal).unwrap();
+
+        if output_file {
+            let mut out_file = Path::new(".").to_path_buf();
+            out_file.push("history.json");
+            fs::write(out_file, json).unwrap();
+        }
+
+        let journal = journal
+            .into_iter()
+            .map(|entry| ProtocolMessage::UnparsedEntry(entry))
+            .collect::<Vec<_>>();
+        let start_message = ProtocolMessage::new_start_message(
+            Bytes::from(invocation_id),
+            invocation_id.to_string(),
+            None,
+            journal.len() as u32,
+            false,
+            vec![],
+        );
+        println!("{:?}", start_message);
     }
 }
