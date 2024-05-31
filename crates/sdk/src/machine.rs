@@ -226,7 +226,8 @@ impl StateMachine {
     }
 
     fn send(&mut self, message: ProtocolMessage) {
-        if self.journal.is_processing() {
+        // If in processing or no use calls are performed at all
+        if self.journal.is_processing() || self.journal.get_user_code_journal_index() == 0 {
             if let Some(ref connection) = self.connection {
                 connection.send(message);
             }

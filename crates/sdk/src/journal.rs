@@ -50,7 +50,10 @@ impl Journal {
                 // Error should be input message
             }
         }
-        println!("Journal state: {:?}, Entries to replay: {}", journal.state, journal.invocation.number_entries_to_replay);
+        println!(
+            "Journal state: {:?}, Entries to replay: {}",
+            journal.state, journal.invocation.number_entries_to_replay
+        );
         journal
     }
 
@@ -76,7 +79,10 @@ impl Journal {
                 self.state = new_state;
             }
         }
-        println!("Journal state: {:?}, Journal user index: {}", self.state, self.user_code_journal_index);
+        println!(
+            "Journal state: {:?}, Journal user index: {}",
+            self.state, self.user_code_journal_index
+        );
     }
 
     fn increment_user_code_index(&mut self) {
