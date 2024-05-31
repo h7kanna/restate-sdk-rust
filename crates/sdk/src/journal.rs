@@ -101,9 +101,11 @@ impl Journal {
         waker: Waker,
     ) -> Option<Bytes> {
         println!(
-            "Handle user code entry_index: {}, journal_index: {}",
+            "Handle user code entry_index: {}, journal_index: {}, state: {:?}, replay_entries: {}",
             entry_index,
-            self.get_user_code_journal_index()
+            self.get_user_code_journal_index(),
+            self.state,
+            self.invocation.number_entries_to_replay
         );
         if entry_index != self.get_user_code_journal_index() {
             self.increment_user_code_index();
