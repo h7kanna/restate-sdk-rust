@@ -44,7 +44,7 @@ pub async fn handle_invocation<F, I, R>(
                 return;
             }
             message = receiver.recv() => {
-               if let Some(message) = receiver.recv().await {
+               if let Some(message) = message {
                     if builder.handle_message(message) {
                         break;
                     }
