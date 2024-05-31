@@ -11,7 +11,7 @@ use restate_service_protocol::{
 };
 use std::{cmp::PartialEq, collections::HashMap};
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum State {
     ExpectingStart,
     ExpectingInput,
@@ -154,6 +154,7 @@ impl RestateStreamConsumer for InvocationBuilder {
         } else {
             self.state = State::ExpectingFurtherReplay;
         }
+        println!("Journal state: {:?}", self.state);
         self.is_complete()
     }
 }
