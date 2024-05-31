@@ -34,14 +34,14 @@ pub(crate) struct StateMachine {
     logger: Logger,
     suspension_tx: UnboundedSender<String>,
     connection: Option<Box<dyn MessageSender>>,
-    sink: Option<Box<dyn MessageSender>>,
+    abort: Option<Box<dyn MessageSender>>,
     protocol_mode: ProtocolMode,
     input: Option<Bytes>,
 }
 
 impl StateMachine {
     pub fn new(
-        sink: Option<Box<dyn MessageSender>>,
+        abort: Option<Box<dyn MessageSender>>,
         connection: Option<Box<dyn MessageSender>>,
         invocation: Invocation,
     ) -> (Self, UnboundedReceiver<String>) {
@@ -56,7 +56,7 @@ impl StateMachine {
                 logger: Logger::new(),
                 suspension_tx,
                 connection,
-                sink,
+                abort,
                 protocol_mode: ProtocolMode::BidiStream,
                 input,
             },
@@ -230,10 +230,8 @@ impl StateMachine {
         if self.journal.is_processing() || self.journal.get_user_code_journal_index() == 0 {
             if let Some(ref connection) = self.connection {
                 connection.send(message);
-            }
-        } else {
-            if let Some(ref sink) = self.sink {
-                sink.send(message);
+            } else if let Some(ref abort) = self.abort {
+                abort.send(message);
             }
         }
     }
