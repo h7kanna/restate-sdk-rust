@@ -45,6 +45,7 @@ pub async fn handle_invocation<F, I, R>(
             }
             message = receiver.recv() => {
                 if let Some(message) = message {
+                    println!("Messages received {:?}", message);
                     if builder.handle_message(message) {
                         println!("Messages completed");
                         break;
