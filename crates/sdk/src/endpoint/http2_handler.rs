@@ -40,8 +40,8 @@ pub async fn handle_invocation<F, I, R>(
     loop {
         tokio::select! {
             _ = token.cancelled() => {
-               println!("Invocation cancelled");
-                break;
+                println!("Invocation cancelled");
+                return;
             }
             message = receiver.recv() => {
                if let Some(message) = receiver.recv().await {
