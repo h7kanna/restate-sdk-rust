@@ -99,7 +99,14 @@ pub async fn handle_invocation<F, I, R>(
     });
 
     // step 5: invoke the function
-    StateMachine::invoke(handler, state_machine).await;
+    tokio::select! {
+        _ = token.cancelled() => {
+
+        }
+        _ = StateMachine::invoke(handler, state_machine) => {
+
+        }
+    }
 }
 
 #[cfg(test)]
