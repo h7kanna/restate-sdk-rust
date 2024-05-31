@@ -11,7 +11,7 @@ use restate_sdk_types::{
 use std::{cmp::PartialEq, task::Waker};
 use tracing::info;
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum NewExecutionState {
     REPLAYING,
     PROCESSING,
@@ -75,6 +75,7 @@ impl Journal {
                 self.state = new_state;
             }
         }
+        println!("Journal state: {:?}, Journal user index: {}", self.state, self.user_code_journal_index);
     }
 
     fn increment_user_code_index(&mut self) {
