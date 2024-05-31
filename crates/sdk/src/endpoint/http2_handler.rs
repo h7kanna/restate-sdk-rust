@@ -45,7 +45,7 @@ pub async fn handle_invocation<F, I, R>(
     let invocation = builder.build();
 
     println!("Invocation started {:?}", invocation.id);
-
+    let invocation_id  =  invocation.id.clone();
     // step 2: create the state machine
     let (state_machine, mut suspension_rx) = StateMachine::new(Box::new(sender), invocation);
 
@@ -101,7 +101,7 @@ pub async fn handle_invocation<F, I, R>(
     // step 5: invoke the function
     tokio::select! {
         _ = token.cancelled() => {
-
+           println!("Invocation cancelled {:?}", invocation_id);
         }
         _ = StateMachine::invoke(handler, state_machine) => {
 
