@@ -46,10 +46,9 @@ pub async fn handle_invocation<F, I, R>(
             message = receiver.recv() => {
                 if let Some(message) = message {
                     if builder.handle_message(message) {
+                        println!("Messages completed");
                         break;
                     }
-                } else {
-                    break;
                 }
             }
         }
@@ -158,7 +157,7 @@ mod tests {
     }
 
     #[traced_test]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_handle_connection() {
         let (receiver, sender, mut output_rx) = setup_mock_connection(VecDeque::from([
             (
@@ -209,12 +208,14 @@ mod tests {
             ),
         ]));
 
+        let token = CancellationToken::new();
+        let token2 = token.clone();
         let handle = tokio::spawn(async move {
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_secs(10)) => {
 
                 }
-                _ = handle_invocation(service_fn, receiver, sender) => {
+                _ = handle_invocation(service_fn, Some(token2), receiver, sender) => {
 
                 }
             }
@@ -237,6 +238,8 @@ mod tests {
             println!("Invocation ---dfasd----->");
         });
 
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        token.cancel();
         handle.await.unwrap();
     }
 }

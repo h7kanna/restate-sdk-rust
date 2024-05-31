@@ -75,7 +75,7 @@ impl StateMachine {
         let ctx = RestateContext::new(state_machine.clone());
         tokio::select! {
             _ = token.cancelled() => {
-               println!("Invocation cancelled");
+               println!("State machine cancelled");
             }
             result = handler(ctx, input) => {
                 match result {
