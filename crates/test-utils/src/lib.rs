@@ -218,7 +218,7 @@ impl TestRestateServer {
         invocation_id: String,
     ) -> VecDeque<(MessageType, ProtocolMessage)> {
         let journal = self.query_journal(invocation_id.clone()).await;
-        println!("{:?}", journal);
+        //println!("{:?}", journal);
 
         let output_file = false;
         let json = serde_json::to_string(&journal).unwrap();
