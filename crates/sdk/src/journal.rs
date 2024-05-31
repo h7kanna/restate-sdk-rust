@@ -50,7 +50,7 @@ impl Journal {
                 // Error should be input message
             }
         }
-        println!("Journal state: {:?}, Journal user index: {}", journal.state, journal.user_code_journal_index);
+        println!("Journal state: {:?}, Entries to replay: {}", journal.state, journal.invocation.number_entries_to_replay);
         journal
     }
 
