@@ -261,7 +261,7 @@ impl TestRestateServer {
             false,
             vec![],
         );
-        println!("{:?}", start_message);
+        //println!("{:?}", start_message);
         journal.push_front((MessageType::Start, start_message));
         journal
     }
