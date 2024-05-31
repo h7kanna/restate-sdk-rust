@@ -15,12 +15,13 @@ pub async fn handle<F, I, R>(
     token: Option<CancellationToken>,
     receiver: Http2Receiver,
     sender: Http2Sender,
+    test: bool,
 ) where
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
     F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
 {
-    handle_invocation(handler, token, receiver, sender).await
+    handle_invocation(handler, token, receiver, sender, test).await
 }
 
 pub async fn handle_invocation<F, I, R>(
@@ -28,6 +29,7 @@ pub async fn handle_invocation<F, I, R>(
     token: Option<CancellationToken>,
     mut receiver: impl MessageReceiver + 'static,
     sender: impl MessageSender + 'static,
+    test: bool,
 ) where
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
@@ -59,7 +61,11 @@ pub async fn handle_invocation<F, I, R>(
     println!("Invocation started {:?}", invocation.id);
     let invocation_id = invocation.id.clone();
     // step 2: create the state machine
-    let (state_machine, mut suspension_rx) = StateMachine::new(Box::new(sender), invocation);
+    let (state_machine, mut suspension_rx) = if test {
+        StateMachine::new(Some(Box::new(sender)), None, invocation)
+    } else {
+        StateMachine::new(None, Some(Box::new(sender)), invocation)
+    };
 
     let state_machine = Arc::new(Mutex::new(state_machine));
     let message_consumer = state_machine.clone();
@@ -216,7 +222,7 @@ mod tests {
                 _ = tokio::time::sleep(Duration::from_secs(10)) => {
 
                 }
-                _ = handle_invocation(service_fn, Some(token2), receiver, sender) => {
+                _ = handle_invocation(service_fn, Some(token2), receiver, sender, true) => {
 
                 }
             }

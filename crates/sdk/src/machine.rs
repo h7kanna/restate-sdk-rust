@@ -33,14 +33,16 @@ pub(crate) struct StateMachine {
     local_state_store: Option<LocalStore>,
     logger: Logger,
     suspension_tx: UnboundedSender<String>,
-    connection: Box<dyn MessageSender>,
+    connection: Option<Box<dyn MessageSender>>,
+    sink: Option<Box<dyn MessageSender>>,
     protocol_mode: ProtocolMode,
     input: Option<Bytes>,
 }
 
 impl StateMachine {
     pub fn new(
-        connection: Box<dyn MessageSender>,
+        sink: Option<Box<dyn MessageSender>>,
+        connection: Option<Box<dyn MessageSender>>,
         invocation: Invocation,
     ) -> (Self, UnboundedReceiver<String>) {
         let input = invocation.invocation_value.clone();
@@ -54,6 +56,7 @@ impl StateMachine {
                 logger: Logger::new(),
                 suspension_tx,
                 connection,
+                sink,
                 protocol_mode: ProtocolMode::BidiStream,
                 input,
             },
@@ -223,7 +226,15 @@ impl StateMachine {
     }
 
     fn send(&mut self, message: ProtocolMessage) {
-        self.connection.send(message);
+        if self.journal.is_processing() {
+            if let Some(ref connection) = self.connection {
+                connection.send(message);
+            }
+        } else {
+            if let Some(ref sink) = self.sink {
+                sink.send(message);
+            }
+        }
     }
 
     fn hit_suspension(&self) {
