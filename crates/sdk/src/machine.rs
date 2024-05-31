@@ -22,6 +22,7 @@ use restate_service_protocol::message::{MessageType, ProtocolMessage};
 use serde::{Deserialize, Serialize};
 use std::{future::Future, sync::Arc, task::Waker};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio_util::sync::CancellationToken;
 
 const SUSPENSION_MILLIS: u32 = 30000;
 
@@ -60,7 +61,7 @@ impl StateMachine {
         )
     }
 
-    pub async fn invoke<F, I, R>(handler: F, state_machine: Arc<Mutex<StateMachine>>)
+    pub async fn invoke<F, I, R>(token: CancellationToken, handler: F, state_machine: Arc<Mutex<StateMachine>>)
     where
         for<'a> I: Serialize + Deserialize<'a>,
         for<'a> R: Serialize + Deserialize<'a>,
@@ -69,41 +70,48 @@ impl StateMachine {
         let input = state_machine.lock().input.clone().unwrap();
         let input = serde_json::from_slice(&input.to_vec()).unwrap();
         let ctx = RestateContext::new(state_machine.clone());
-        match handler(ctx, input).await {
-            Ok(result) => {
-                let result = serde_json::to_string(&result).unwrap();
-                let output: ProtocolMessage = PlainRawEntry::new(
-                    PlainEntryHeader::Output,
-                    service_protocol::OutputEntryMessage {
-                        name: "".to_string(),
-                        result: Some(service_protocol::output_entry_message::Result::Value(
-                            result.into(),
-                        )),
+        tokio::select! {
+            _ = token.cancelled() => {
+               println!("Invocation cancelled");
+            }
+            result = handler(ctx, input) => {
+                match result {
+                    Ok(result) => {
+                        let result = serde_json::to_string(&result).unwrap();
+                        let output: ProtocolMessage = PlainRawEntry::new(
+                            PlainEntryHeader::Output,
+                            service_protocol::OutputEntryMessage {
+                                name: "".to_string(),
+                                result: Some(service_protocol::output_entry_message::Result::Value(
+                                    result.into(),
+                                )),
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into();
+                        let mut state_machine = state_machine.lock();
+                        println!("Invocation output:  {:?}", output);
+                        state_machine.send(output);
+                        println!("Invocation end");
+                        state_machine.send(ProtocolMessage::End(service_protocol::EndMessage {}));
                     }
-                    .encode_to_vec()
-                    .into(),
-                )
-                .into();
-                let mut state_machine = state_machine.lock();
-                println!("Invocation output:  {:?}", output);
-                state_machine.send(output);
-                println!("Invocation end");
-                state_machine.send(ProtocolMessage::End(service_protocol::EndMessage {}));
+                    Err(err) => {
+                        let error: ProtocolMessage = ProtocolMessage::Error(service_protocol::ErrorMessage {
+                            code: 0,
+                            message: "".to_string(),
+                            description: err.to_string(),
+                            related_entry_index: None,
+                            related_entry_name: None,
+                            related_entry_type: None,
+                        });
+                        let mut state_machine = state_machine.lock();
+                        state_machine.send(error);
+                        state_machine.send(ProtocolMessage::End(service_protocol::EndMessage {}));
+                    }
+                };
             }
-            Err(err) => {
-                let error: ProtocolMessage = ProtocolMessage::Error(service_protocol::ErrorMessage {
-                    code: 0,
-                    message: "".to_string(),
-                    description: err.to_string(),
-                    related_entry_index: None,
-                    related_entry_name: None,
-                    related_entry_type: None,
-                });
-                let mut state_machine = state_machine.lock();
-                state_machine.send(error);
-                state_machine.send(ProtocolMessage::End(service_protocol::EndMessage {}));
-            }
-        };
+        }
     }
 
     pub fn handle_user_code_message(
