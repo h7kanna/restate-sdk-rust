@@ -10,17 +10,22 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-pub async fn handle<F, I, R>(handler: F, receiver: Http2Receiver, sender: Http2Sender)
-where
+pub async fn handle<F, I, R>(
+    handler: F,
+    token: Option<CancellationToken>,
+    receiver: Http2Receiver,
+    sender: Http2Sender,
+) where
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
     F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
 {
-    handle_invocation(handler, receiver, sender).await
+    handle_invocation(handler, token, receiver, sender).await
 }
 
 pub async fn handle_invocation<F, I, R>(
     handler: F,
+    token: Option<CancellationToken>,
     mut receiver: impl MessageReceiver + 'static,
     sender: impl MessageSender + 'static,
 ) where
@@ -48,7 +53,7 @@ pub async fn handle_invocation<F, I, R>(
     let message_consumer = state_machine.clone();
     let suspension_consumer = state_machine.clone();
 
-    let token = CancellationToken::new();
+    let token = token.unwrap_or_else(||CancellationToken::new());
     let token2 = token.clone();
     let token3 = token.clone();
 
@@ -95,7 +100,6 @@ pub async fn handle_invocation<F, I, R>(
 
     // step 5: invoke the function
     StateMachine::invoke(handler, state_machine).await;
-    token.cancel();
 }
 
 #[cfg(test)]

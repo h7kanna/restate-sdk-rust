@@ -122,7 +122,7 @@ fn handler_methods(service: &Service) -> Vec<proc_macro2::TokenStream> {
                 let (receiver, sender, boxed_body) = setup_connection(req);
                 tokio::spawn(
                     async move {
-                        http2_handler::handle(bundle::#service::#handler, receiver, sender).await;
+                        http2_handler::handle(bundle::#service::#handler, None, receiver, sender).await;
                         println!("Invocation task completed");
                     },
                 );
