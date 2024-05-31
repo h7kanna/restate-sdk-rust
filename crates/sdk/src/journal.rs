@@ -87,7 +87,7 @@ impl Journal {
 
     fn increment_user_code_index(&mut self) {
         self.user_code_journal_index += 1;
-        if self.user_code_journal_index == self.invocation.number_entries_to_replay - 1
+        if self.user_code_journal_index == self.invocation.number_entries_to_replay
             && self.state == NewExecutionState::REPLAYING
         {
             self.transition_state(NewExecutionState::PROCESSING)
