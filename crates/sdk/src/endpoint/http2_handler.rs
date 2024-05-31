@@ -33,19 +33,29 @@ pub async fn handle_invocation<F, I, R>(
     for<'a> R: Serialize + Deserialize<'a>,
     F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
 {
+    let token = token.unwrap_or_else(|| CancellationToken::new());
+
     // step 1: collect all journal entries
     let mut builder = InvocationBuilder::new();
     loop {
-        if let Some(message) = receiver.recv().await {
-            if builder.handle_message(message) {
+        tokio::select! {
+            _ = token.cancelled() => {
+               println!("Invocation cancelled");
                 break;
+            }
+            message = receiver.recv() => {
+               if let Some(message) = receiver.recv().await {
+                    if builder.handle_message(message) {
+                        break;
+                    }
+                }
             }
         }
     }
     let invocation = builder.build();
 
     println!("Invocation started {:?}", invocation.id);
-    let invocation_id  =  invocation.id.clone();
+    let invocation_id = invocation.id.clone();
     // step 2: create the state machine
     let (state_machine, mut suspension_rx) = StateMachine::new(Box::new(sender), invocation);
 
@@ -53,7 +63,6 @@ pub async fn handle_invocation<F, I, R>(
     let message_consumer = state_machine.clone();
     let suspension_consumer = state_machine.clone();
 
-    let token = token.unwrap_or_else(||CancellationToken::new());
     let token2 = token.clone();
     let token3 = token.clone();
 

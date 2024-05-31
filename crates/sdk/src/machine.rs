@@ -61,8 +61,11 @@ impl StateMachine {
         )
     }
 
-    pub async fn invoke<F, I, R>(token: CancellationToken, handler: F, state_machine: Arc<Mutex<StateMachine>>)
-    where
+    pub async fn invoke<F, I, R>(
+        token: CancellationToken,
+        handler: F,
+        state_machine: Arc<Mutex<StateMachine>>,
+    ) where
         for<'a> I: Serialize + Deserialize<'a>,
         for<'a> R: Serialize + Deserialize<'a>,
         F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
