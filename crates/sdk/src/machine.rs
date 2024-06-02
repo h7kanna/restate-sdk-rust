@@ -14,9 +14,10 @@ use restate_sdk_types::{
     endpoint_manifest::ProtocolMode,
     journal::{
         raw::{PlainEntryHeader, PlainRawEntry},
-        Entry,
+        Entry, EntryResult,
     },
     service_protocol,
+    service_protocol::{run_entry_message, Failure},
 };
 use restate_service_protocol::message::{MessageType, ProtocolMessage};
 use serde::{Deserialize, Serialize};
@@ -208,7 +209,27 @@ impl StateMachine {
                 }
                 Entry::Awakeable(_) => {}
                 Entry::CompleteAwakeable(_) => {}
-                Entry::Run(_) => {}
+                Entry::Run(run) => {
+                    let result = match &run.result {
+                        EntryResult::Success(value) => run_entry_message::Result::Value(value.clone()),
+                        EntryResult::Failure(code, message) => run_entry_message::Result::Failure(Failure {
+                            code: (*code).into(),
+                            message: message.to_string(),
+                        }),
+                    };
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::Run,
+                            service_protocol::RunEntryMessage {
+                                name: "".to_string(),
+                                result: Some(result),
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
                 Entry::Custom(_) => {}
             }
             None

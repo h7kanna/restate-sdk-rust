@@ -3,7 +3,7 @@ use bytes::Bytes;
 use dashmap::DashMap;
 use futures_util::task::waker;
 use restate_sdk_types::{
-    journal::{Entry, EntryResult, InputEntry, SleepResult},
+    journal::{Entry, EntryResult, InputEntry, RunEntry, SleepResult},
     service_protocol::{
         call_entry_message, completion_message, CompletionMessage, EntryAckMessage, InputEntryMessage,
     },
@@ -165,7 +165,12 @@ impl Journal {
                     Entry::OneWayCall(_) => {}
                     Entry::Awakeable(_) => {}
                     Entry::CompleteAwakeable(_) => {}
-                    Entry::Run(_) => {}
+                    Entry::Run(run) => match &run.result {
+                        EntryResult::Success(value) => {
+                            return Some(value.clone());
+                        }
+                        EntryResult::Failure(_, _) => {}
+                    },
                     Entry::Custom(_) => {}
                 }
             }
@@ -214,7 +219,12 @@ impl Journal {
             Entry::OneWayCall(_) => {}
             Entry::Awakeable(_) => {}
             Entry::CompleteAwakeable(_) => {}
-            Entry::Run(_) => {}
+            Entry::Run(run) => match run.result {
+                EntryResult::Success(value) => {
+                    return Some(value.clone());
+                }
+                EntryResult::Failure(_, _) => {}
+            },
             Entry::Custom(_) => {}
         }
         None

@@ -13,6 +13,12 @@ required-features = []
 
 [[example]]
 doc = false
+name = "example0"
+path = "src/example0.rs"
+required-features = []
+
+[[example]]
+doc = false
 name = "example1"
 path = "src/example1.rs"
 required-features = []

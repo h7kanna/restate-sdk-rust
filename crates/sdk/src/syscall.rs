@@ -2,7 +2,7 @@ use crate::machine::StateMachine;
 use bytes::Bytes;
 use parking_lot::Mutex;
 use prost::Message;
-use restate_sdk_types::journal::{Entry, InvokeEntry, SleepEntry};
+use restate_sdk_types::journal::{Entry, InvokeEntry, RunEntry, SleepEntry};
 use std::{
     future::Future,
     marker::PhantomData,
@@ -46,6 +46,40 @@ impl Future for SleepService {
     }
 }
 
+pub struct RunService {
+    entry_index: u32,
+    run_entry: RunEntry,
+    state_machine: Arc<Mutex<StateMachine>>,
+}
+
+impl RunService {
+    pub fn new(run_entry: RunEntry, state_machine: Arc<Mutex<StateMachine>>) -> Self {
+        let entry_index = state_machine.lock().get_next_user_code_journal_index();
+        Self {
+            entry_index,
+            run_entry,
+            state_machine,
+        }
+    }
+}
+
+impl Future for RunService {
+    type Output = Bytes;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+            self.entry_index,
+            Entry::Run(self.run_entry.clone()),
+            cx.waker().clone(),
+        ) {
+            println!("Run Result ready for entry: {}", self.entry_index);
+            Poll::Ready(result)
+        } else {
+            println!("Run Result pending for entry: {}", self.entry_index);
+            Poll::Pending
+        }
+    }
+}
 
 pub struct CallService<T> {
     entry_index: u32,
