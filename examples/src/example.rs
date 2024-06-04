@@ -11,6 +11,11 @@ mod bundle {
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct AwakeOutput {
+        test: String,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct ExecInput {
         test: String,
     }
@@ -40,10 +45,14 @@ mod bundle {
         #[async_recursion]
         #[restate::handler]
         pub async fn service(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+            let (id, awakeable) = ctx.awakeable::<AwakeOutput>();
+            println!("Service: service: awakeable {:?}", id);
+            let output = awakeable.await?;
+            println!("Service: service: awakeable received {:?}", output);
             println!("Service: service: input {:?}", name);
             let output = ctx.simple_service_client().greet(name.clone()).await?;
             println!("Service: service: sleeping {:?}", name);
-            ctx.sleep(30000).await?;
+            ctx.sleep(10000).await?;
             println!("Service: service: woke up {:?}", name);
             println!("Simple service output {:?}", output);
             // Calling ourselves

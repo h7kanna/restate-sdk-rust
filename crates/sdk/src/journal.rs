@@ -5,7 +5,8 @@ use futures_util::task::waker;
 use restate_sdk_types::{
     journal::{Entry, EntryResult, InputEntry, RunEntry, SleepResult},
     service_protocol::{
-        call_entry_message, completion_message, CompletionMessage, EntryAckMessage, InputEntryMessage,
+        awakeable_entry_message, call_entry_message, completion_message, CompletionMessage, EntryAckMessage,
+        InputEntryMessage,
     },
 };
 use std::{cmp::PartialEq, task::Waker};
@@ -55,6 +56,10 @@ impl Journal {
             journal.state, journal.invocation.number_entries_to_replay
         );
         journal
+    }
+
+    pub fn invocation(&self) -> &Invocation {
+        &self.invocation
     }
 
     fn handle_input_message(&mut self, input: InputEntry) {
@@ -163,7 +168,16 @@ impl Journal {
                         }
                     }
                     Entry::OneWayCall(_) => {}
-                    Entry::Awakeable(_) => {}
+                    Entry::Awakeable(awakeaable) => {
+                        if let Some(result) = awakeaable.result.as_ref() {
+                            match result {
+                                EntryResult::Success(success) => {
+                                    return Some(success.clone());
+                                }
+                                EntryResult::Failure(_, _) => {}
+                            }
+                        }
+                    }
                     Entry::CompleteAwakeable(_) => {}
                     Entry::Run(run) => match &run.result {
                         EntryResult::Success(value) => {
@@ -217,7 +231,14 @@ impl Journal {
                 }
             }
             Entry::OneWayCall(_) => {}
-            Entry::Awakeable(_) => {}
+            Entry::Awakeable(awakeable) => {
+                if let Some(result) = awakeable.result {
+                    match result {
+                        EntryResult::Success(value) => return Some(value),
+                        EntryResult::Failure(code, value) => {}
+                    }
+                }
+            }
             Entry::CompleteAwakeable(_) => {}
             Entry::Run(run) => match run.result {
                 EntryResult::Success(value) => {
@@ -244,14 +265,16 @@ impl Journal {
             Entry::GetPromise(_) => {}
             Entry::PeekPromise(_) => {}
             Entry::CompletePromise(_) => {}
-            entry @ Entry::Sleep(_) => {
+            Entry::Sleep(_) => {
                 self.append_entry(entry, waker);
             }
-            entry @ Entry::Call(_) => {
+            Entry::Call(_) => {
                 self.append_entry(entry, waker);
             }
             Entry::OneWayCall(_) => {}
-            Entry::Awakeable(_) => {}
+            Entry::Awakeable(_) => {
+                self.append_entry(entry, waker);
+            }
             Entry::CompleteAwakeable(_) => {}
             Entry::Run(_) => {}
             Entry::Custom(_) => {}
@@ -279,7 +302,7 @@ impl Journal {
                     match message.result {
                         Some(result) => match result {
                             completion_message::Result::Empty(_) | completion_message::Result::Value(_) => {
-                                println!("Journal runtime message value: {:?}", result);
+                                println!("Journal runtime message sleep value: {:?}", result);
                                 sleep.result = Some(SleepResult::Fired);
                             }
                             completion_message::Result::Failure(_) => {}
@@ -293,7 +316,7 @@ impl Journal {
                         completion_message::Result::Empty(_) => {}
                         completion_message::Result::Value(value) => {
                             info!("{:?}", value);
-                            println!("Journal runtime message value: {:?}", value);
+                            println!("Journal runtime message call value: {:?}", value);
                             call.result = Some(EntryResult::Success(value));
                         }
                         completion_message::Result::Failure(_) => {}
@@ -301,7 +324,18 @@ impl Journal {
                     None => {}
                 },
                 Entry::OneWayCall(_) => {}
-                Entry::Awakeable(_) => {}
+                Entry::Awakeable(awakeable) => match message.result {
+                    Some(result) => match result {
+                        completion_message::Result::Empty(_) => {}
+                        completion_message::Result::Value(value) => {
+                            info!("{:?}", value);
+                            println!("Journal runtime message awakeable value: {:?}", value);
+                            awakeable.result = Some(EntryResult::Success(value));
+                        }
+                        completion_message::Result::Failure(_) => {}
+                    },
+                    None => {}
+                },
                 Entry::CompleteAwakeable(_) => {}
                 Entry::Run(_) => {}
                 Entry::Custom(_) => {}

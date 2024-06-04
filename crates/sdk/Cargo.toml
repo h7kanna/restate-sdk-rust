@@ -12,6 +12,7 @@ tokio = []
 [dependencies]
 anyhow = { workspace = true }
 async-trait = "0.1.80"
+base64 = { workspace = true }
 bytes = { workspace = true }
 bytes-utils = { workspace = true }
 bytestring = { workspace = true }

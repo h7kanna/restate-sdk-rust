@@ -9,6 +9,7 @@ mod machine;
 mod protocol;
 mod store;
 mod syscall;
+mod utils;
 
 pub mod connection;
 pub mod context;

@@ -31,6 +31,10 @@ restate dp add --yes --force http://localhost:3000
 curl -v localhost:8080/Greeter/greet -H 'content-type: application/json' -d '{"test": "test"}'
 
 curl -v localhost:8080/Service/service -H 'content-type: application/json' -d '{"test": "test"}'
+
+curl -v localhost:8080/Service/service -H 'content-type: application/json' -H 'idempotency-key: example' -d '{"test": "test"}'
+
+curl -v localhost:8080/restate/awakeables/prom_1poYdSpyOUiIBj-UhcdNUFZ_2991Svj-cAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
 ```
 
 ```shell
