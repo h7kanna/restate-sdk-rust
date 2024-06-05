@@ -34,7 +34,7 @@ curl -v localhost:8080/Service/service -H 'content-type: application/json' -d '{
 
 curl -v localhost:8080/Service/service -H 'content-type: application/json' -H 'idempotency-key: example' -d '{"test": "test"}'
 
-curl -v localhost:8080/restate/awakeables/prom_1poYdSpyOUiIBj-UhcdNUFZ_2991Svj-cAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
+curl -v localhost:8080/restate/awakeables/prom_1Q7qJv1Wx2fMBj-aHr170E02gwRwfSZDvAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
 ```
 
 ```shell
