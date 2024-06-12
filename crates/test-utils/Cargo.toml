@@ -10,8 +10,8 @@ default = []
 
 [dependencies]
 anyhow = { workspace = true }
-arrow = { version = "=51.0.0", features = ["ipc", "prettyprint","json"] }
-arrow_convert = { version = "0.6.6" }
+arrow = { version = "51.0.0", features = ["ipc", "prettyprint","json"] }
+arrow_convert = { version = "=0.6.6" }
 bytes = { workspace = true }
 chrono = { version = "0.4.31", default-features = false, features = ["clock"] }
 reqwest = { version = "0.12.4", features = ["json"] }
