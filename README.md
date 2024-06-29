@@ -34,12 +34,12 @@ curl -v localhost:8080/Service/service -H 'content-type: application/json' -d '{
 
 curl -v localhost:8080/Service/service -H 'content-type: application/json' -H 'idempotency-key: example' -d '{"test": "test"}'
 
-curl -v localhost:8080/restate/awakeables/prom_1Q7qJv1Wx2fMBj-aHr170E02gwRwfSZDvAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
+curl -v localhost:8080/restate/awakeables/prom_1YwTpVjSWlMQBkGYN97hMFMZ8ypbhiXMdAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
 ```
 
 ```shell
 restate invocations list
-restate invocations cancel --yes inv_1fc7cheTHBtE1FrX712RMJ6EXOf3AAePjb
+restate invocations cancel --yes inv_1gSomuaZJqT10TzzSN1nTOFycg8aggtPrj
 ```
 
 ```shell

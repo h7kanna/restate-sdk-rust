@@ -83,7 +83,7 @@ async fn service(
 
             let response = Response::builder()
                 .status(StatusCode::OK)
-                .header("content-type", "application/restate")
+                .header("content-type", "application/vnd.restate.invocation.v1")
                 .header("x-restate-server", "restate-sdk-rust/0.1.0")
                 .body(boxed_body)
                 .unwrap();
@@ -145,7 +145,7 @@ async fn service(
 
             let response = Response::builder()
                 .status(StatusCode::OK)
-                .header("content-type", "application/restate")
+                .header("content-type", "application/vnd.restate.invocation.v1")
                 .header("x-restate-server", "restate-sdk-rust/0.1.0")
                 .body(boxed_body)
                 .unwrap();
