@@ -83,11 +83,11 @@ pub fn bundle(args: TokenStream, item: TokenStream) -> TokenStream {
         };
         pub async fn service(req: Request<Incoming>) -> restate::Result<Response<BoxBody<Bytes, anyhow::Error>>> {
             match (req.method(), req.uri().path()) {
-                (&Method::POST, "/discover") => {
+                (&Method::GET, "/discover") => {
                     let manifest = #manifest_json;
                     let response = Response::builder()
                         .status(StatusCode::OK)
-                        .header("content-type", "application/json")
+                        .header("content-type", "application/vnd.restate.endpointmanifest.v1+json")
                         .header("x-restate-server", "restate-sdk-rust/0.1.0")
                         .body(full(manifest).map_err(|e| e.into()).boxed())
                         .unwrap();

@@ -15,7 +15,7 @@ async fn service(
 ) -> hyper::Result<Response<BoxBody<Bytes, anyhow::Error>>> {
     match (req.method(), req.uri().path()) {
         // Serve some instructions at /
-        (&Method::POST, "/discover") => {
+        (&Method::GET, "/discover") => {
             let manifest = r#"{
   "protocolMode": "BIDI_STREAM",
   "minProtocolVersion": 1,
@@ -44,7 +44,7 @@ async fn service(
 
             let response = Response::builder()
                 .status(StatusCode::OK)
-                .header("content-type", "application/json")
+                .header("content-type", "application/vnd.restate.endpointmanifest.v1+json")
                 .header("x-restate-server", "restate-sdk-rust/0.1.0")
                 .body(full(manifest).map_err(|e| e.into()).boxed())
                 .unwrap();
