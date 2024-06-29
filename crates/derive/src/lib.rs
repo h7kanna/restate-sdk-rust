@@ -301,7 +301,8 @@ fn create_service(item: &ItemImpl) -> Service {
                             input: None,
                             name: HandlerName::try_from(name).unwrap(),
                             output: None,
-                            ty: Some(HandlerType::Exclusive),
+                            //ty: Some(HandlerType::Exclusive),
+                            ty: None,
                         })
                     }
                 }
