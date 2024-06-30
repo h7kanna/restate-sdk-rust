@@ -1,6 +1,6 @@
 use crate::{
     connection::{Http2Receiver, Http2Sender, MessageReceiver, MessageSender, RestateStreamConsumer},
-    context::RestateContext,
+    context::Context,
     invocation::InvocationBuilder,
     machine::StateMachine,
 };
@@ -19,7 +19,7 @@ pub async fn handle<F, I, R>(
 ) where
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
-    F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+    F: ServiceHandler<Context, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
 {
     handle_invocation(handler, token, receiver, sender, test).await
 }
@@ -33,7 +33,7 @@ pub async fn handle_invocation<F, I, R>(
 ) where
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
-    F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+    F: ServiceHandler<Context, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
 {
     let token = token.unwrap_or_else(|| CancellationToken::new());
 
@@ -124,7 +124,7 @@ mod tests {
     use super::*;
     use crate::{
         connection::{setup_mock_connection, MessageSender, RestateStreamConsumer},
-        context::RestateContext,
+        context::Context,
     };
     use prost::Message;
     use restate_sdk_types::{
@@ -149,7 +149,7 @@ mod tests {
         status: String,
     }
 
-    async fn service_fn(ctx: RestateContext, input: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+    async fn service_fn(ctx: Context, input: ExecInput) -> Result<ExecOutput, anyhow::Error> {
         let output = ctx
             .invoke(greet_fn, "Greeter".to_string(), "greet".to_string(), input, None)
             .await
@@ -159,7 +159,7 @@ mod tests {
         })
     }
 
-    async fn greet_fn(ctx: RestateContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+    async fn greet_fn(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
         Ok(ExecOutput { status: name.name })
     }
 

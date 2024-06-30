@@ -31,14 +31,26 @@ pub enum CallContextType {
 }
 
 #[derive(Clone)]
-pub struct RestateContext {
+pub struct Context {
     request: Request,
     state_machine: Arc<Mutex<StateMachine>>,
 }
 
-impl RestateContext {
+#[derive(Clone)]
+pub struct ObjectContext {
+    request: Request,
+    state_machine: Arc<Mutex<StateMachine>>,
+}
+
+#[derive(Clone)]
+pub struct WorkflowContext {
+    request: Request,
+    state_machine: Arc<Mutex<StateMachine>>,
+}
+
+impl Context {
     pub(crate) fn new(request: Request, state_machine: Arc<Mutex<StateMachine>>) -> Self {
-        RestateContext {
+        Context {
             request,
             state_machine,
         }
@@ -110,7 +122,7 @@ impl RestateContext {
     where
         for<'a> I: Serialize + Deserialize<'a>,
         for<'a> R: Serialize + Deserialize<'a>,
-        F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+        F: ServiceHandler<Context, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
     {
         let parameter = serde_json::to_string(&parameter).unwrap();
         async move {

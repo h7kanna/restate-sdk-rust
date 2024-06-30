@@ -350,3 +350,13 @@ pub fn handler(args: TokenStream, item: TokenStream) -> TokenStream {
     )
     .into()
 }
+
+#[proc_macro_attribute]
+#[cfg(not(test))]
+pub fn run(args: TokenStream, item: TokenStream) -> TokenStream {
+    let handler = syn::parse_macro_input!(item as ItemFn);
+    quote!(
+        #handler
+    )
+    .into()
+}

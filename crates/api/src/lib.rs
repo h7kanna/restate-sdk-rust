@@ -8,8 +8,8 @@ pub use http_body_util::{combinators::BoxBody, BodyExt};
 pub use hyper::{body::Incoming, Result};
 pub use restate_sdk::{
     connection::*,
-    context::RestateContext as Context,
+    context::{Context, ObjectContext, WorkflowContext},
     endpoint::{self, *},
 };
 pub use restate_sdk_client::{HttpIngress, Ingress};
-pub use restate_sdk_derive::{bundle, handler, main, object, service, workflow};
+pub use restate_sdk_derive::{bundle, handler, main, object, run, service, workflow};

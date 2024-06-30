@@ -35,6 +35,12 @@ name = "example4"
 path = "src/example4.rs"
 required-features = []
 
+[[example]]
+doc = false
+name = "workflow"
+path = "src/workflow.rs"
+required-features = []
+
 [features]
 default = []
 

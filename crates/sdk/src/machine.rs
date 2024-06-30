@@ -1,6 +1,6 @@
 use crate::{
     connection::{MessageSender, RestateStreamConsumer},
-    context::{Request, RestateContext},
+    context::{Context, Request},
     invocation::Invocation,
     journal::Journal,
     logger::Logger,
@@ -72,14 +72,14 @@ impl StateMachine {
     ) where
         for<'a> I: Serialize + Deserialize<'a>,
         for<'a> R: Serialize + Deserialize<'a>,
-        F: ServiceHandler<RestateContext, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+        F: ServiceHandler<Context, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
     {
         let input = state_machine.lock().input.clone().unwrap();
         let input = serde_json::from_slice(&input.to_vec()).unwrap();
         let request = Request {
             id: state_machine.lock().journal.invocation().id.clone(),
         };
-        let ctx = RestateContext::new(request, state_machine.clone());
+        let ctx = Context::new(request, state_machine.clone());
         tokio::select! {
             _ = token.cancelled() => {
                println!("State machine cancelled");
