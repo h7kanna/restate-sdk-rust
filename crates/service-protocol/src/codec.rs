@@ -75,7 +75,10 @@ impl RawEntryCodec for ProtobufRawEntryCodec {
         )
     }
 
-    fn deserialize(entry_type: EntryType, mut entry_value: Bytes) -> Result<Entry, RawEntryCodecError> {
+    fn deserialize(
+        entry_type: EntryType,
+        mut entry_value: Bytes,
+    ) -> Result<Entry, RawEntryCodecError> {
         // We clone the entry Bytes here to ensure that the generated Message::decode
         // invocation reuses the same underlying byte array.
         match_decode!(entry_type, entry_value, {
@@ -104,9 +107,12 @@ impl RawEntryCodec for ProtobufRawEntryCodec {
     ) -> Result<Option<String>, RawEntryCodecError> {
         Ok(NamedEntryTemplate::decode(entry_value)
             .map_err(|e| {
-                RawEntryCodecError::new(entry_type, ErrorKind::Decode {
-                    source: Some(e.into()),
-                })
+                RawEntryCodecError::new(
+                    entry_type,
+                    ErrorKind::Decode {
+                        source: Some(e.into()),
+                    },
+                )
             })?
             .name)
     }

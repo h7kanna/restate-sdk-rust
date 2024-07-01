@@ -8,6 +8,7 @@
 // the Business Source License, use of this software will be governed
 // by the Apache License, Version 2.0.
 
+use std::any::Any;
 use std::borrow::Cow;
 use std::convert::Into;
 use std::fmt;
@@ -85,6 +86,7 @@ pub mod codes {
 pub struct InvocationError {
     code: InvocationErrorCode,
     message: Cow<'static, str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<Cow<'static, str>>,
 }
 
@@ -207,8 +209,14 @@ pub const GONE_INVOCATION_ERROR: InvocationError = InvocationError::new_static(c
 pub const NOT_FOUND_INVOCATION_ERROR: InvocationError =
     InvocationError::new_static(codes::NOT_FOUND, "not found");
 
+pub const ATTACH_NOT_SUPPORTED_INVOCATION_ERROR: InvocationError =
+    InvocationError::new_static(codes::BAD_REQUEST, "attach not supported for this invocation. You can attach only to invocations created with an idempotency key, or for workflow methods.");
+
 pub const ALREADY_COMPLETED_INVOCATION_ERROR: InvocationError =
     InvocationError::new_static(codes::CONFLICT, "promise was already completed");
+
+pub const WORKFLOW_ALREADY_INVOKED_INVOCATION_ERROR: InvocationError =
+    InvocationError::new_static(codes::CONFLICT, "the workflow method was already invoked");
 
 /// Error parsing/decoding a resource ID.
 #[derive(Debug, thiserror::Error, Clone, Eq, PartialEq)]

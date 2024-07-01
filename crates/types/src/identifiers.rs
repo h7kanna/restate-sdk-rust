@@ -1,3 +1,15 @@
+// Copyright (c) 2023 -  Restate Software, Inc., Restate GmbH.
+// All rights reserved.
+//
+// Use of this software is governed by the Business Source License
+// included in the LICENSE file.
+//
+// As of the Change Date specified in that file, in accordance with
+// the Business Source License, use of this software will be governed
+// by the Apache License, Version 2.0.
+
+//! Restate uses many identifiers to uniquely identify its services and entities.
+
 use std::fmt;
 use bytestring::ByteString;
 
@@ -44,9 +56,19 @@ impl ServiceId {
         service_name: impl Into<ByteString>,
         key: impl Into<ByteString>,
     ) -> Self {
+        Self::from_parts(partition_key, service_name.into(), key.into())
+    }
+
+    /// # Important
+    /// The `partition_key` must be hash of the `key` computed via [`HashPartitioner`].
+    pub const fn from_parts(
+        partition_key: PartitionKey,
+        service_name: ByteString,
+        key: ByteString,
+    ) -> Self {
         Self {
-            service_name: service_name.into(),
-            key: key.into(),
+            service_name,
+            key,
             partition_key,
         }
     }
