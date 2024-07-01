@@ -98,7 +98,7 @@ pub trait ContextBase: ContextData {
         }
     }
 
-    fn invoke<F, I, R>(
+    fn invoke<C, F, I, R>(
         &self,
         _func: F,
         service_name: String,
@@ -109,7 +109,8 @@ pub trait ContextBase: ContextData {
     where
         for<'a> I: Serialize + Deserialize<'a>,
         for<'a> R: Serialize + Deserialize<'a>,
-        F: ServiceHandler<Context, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+        F: ServiceHandler<C, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+        C: ContextData,
     {
         let parameter = serde_json::to_string(&parameter).unwrap();
         async move {

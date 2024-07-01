@@ -7,7 +7,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{Context, ContextBase, WorkflowContext};
+    use restate::{ContextBase, WorkflowContext};
     use serde::{Deserialize, Serialize};
     use std::{future, time::Duration};
 
