@@ -7,7 +7,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{ContextBase, WorkflowContext};
+    use restate::{ContextBase, WorkflowContext, WorkflowSharedContext};
     use serde::{Deserialize, Serialize};
     use std::{future, time::Duration};
 
@@ -31,7 +31,7 @@ mod bundle {
         const NAME: &'static str = "WorkflowService";
         const TYPE: &'static str = "WORKFLOW";
 
-        #[restate::run]
+        #[restate::handler]
         pub async fn run(ctx: WorkflowContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             let (id, result) = ctx.awakeable::<SignalInput>();
             ctx.run(move || {
@@ -48,7 +48,8 @@ mod bundle {
             Ok(ExecOutput { test: name.test })
         }
 
-        pub async fn pending() -> Result<(), anyhow::Error> {
+        #[restate::handler]
+        pub async fn signal(ctx: WorkflowSharedContext, name: SignalInput) -> Result<(), anyhow::Error> {
             future::pending::<()>().await;
             Ok(())
         }

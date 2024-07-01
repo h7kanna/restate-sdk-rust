@@ -42,6 +42,27 @@ pub trait ContextData {
     fn state_machine(&self) -> Arc<Mutex<StateMachine>>;
 }
 
+macro_rules! context_data_impl {
+    ($test:tt) => {
+        impl ContextData for $test {
+            fn new(request: Request, state_machine: Arc<Mutex<StateMachine>>) -> Self {
+                $test {
+                    request,
+                    state_machine,
+                }
+            }
+
+            fn request(&self) -> &Request {
+                &self.request
+            }
+
+            fn state_machine(&self) -> Arc<Mutex<StateMachine>> {
+                self.state_machine.clone()
+            }
+        }
+    };
+}
+
 pub trait ContextBase: ContextData {
     fn awakeable<R>(&self) -> (String, impl Future<Output = Result<R, Error>> + '_)
     where
@@ -188,22 +209,7 @@ pub struct Context {
     state_machine: Arc<Mutex<StateMachine>>,
 }
 
-impl ContextData for Context {
-    fn new(request: Request, state_machine: Arc<Mutex<StateMachine>>) -> Self {
-        Context {
-            request,
-            state_machine,
-        }
-    }
-
-    fn request(&self) -> &Request {
-        &self.request
-    }
-
-    fn state_machine(&self) -> Arc<Mutex<StateMachine>> {
-        self.state_machine.clone()
-    }
-}
+context_data_impl!(Context);
 
 impl ContextBase for Context {}
 
@@ -213,22 +219,7 @@ pub struct ObjectContext {
     state_machine: Arc<Mutex<StateMachine>>,
 }
 
-impl ContextData for ObjectContext {
-    fn new(request: Request, state_machine: Arc<Mutex<StateMachine>>) -> Self {
-        ObjectContext {
-            request,
-            state_machine,
-        }
-    }
-
-    fn request(&self) -> &Request {
-        &self.request
-    }
-
-    fn state_machine(&self) -> Arc<Mutex<StateMachine>> {
-        self.state_machine.clone()
-    }
-}
+context_data_impl!(ObjectContext);
 
 impl ContextBase for ObjectContext {}
 
@@ -241,6 +232,8 @@ pub struct ObjectSharedContext {
     request: Request,
     state_machine: Arc<Mutex<StateMachine>>,
 }
+
+context_data_impl!(ObjectSharedContext);
 
 pub trait CombinablePromise<T>: Future<Output = T> {
     fn or_timeout(&self, millis: u64) -> impl Future<Output = T>;
@@ -263,14 +256,7 @@ pub struct WorkflowSharedContext {
     state_machine: Arc<Mutex<StateMachine>>,
 }
 
-impl WorkflowSharedContext {
-    pub(crate) fn new(request: Request, state_machine: Arc<Mutex<StateMachine>>) -> Self {
-        WorkflowSharedContext {
-            request,
-            state_machine,
-        }
-    }
-}
+context_data_impl!(WorkflowSharedContext);
 
 #[derive(Clone)]
 pub struct WorkflowContext {
@@ -278,22 +264,7 @@ pub struct WorkflowContext {
     state_machine: Arc<Mutex<StateMachine>>,
 }
 
-impl ContextData for WorkflowContext {
-    fn new(request: Request, state_machine: Arc<Mutex<StateMachine>>) -> Self {
-        WorkflowContext {
-            request,
-            state_machine,
-        }
-    }
-
-    fn request(&self) -> &Request {
-        &self.request
-    }
-
-    fn state_machine(&self) -> Arc<Mutex<StateMachine>> {
-        self.state_machine.clone()
-    }
-}
+context_data_impl!(WorkflowContext);
 
 impl ContextBase for WorkflowContext {}
 

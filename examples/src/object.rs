@@ -7,7 +7,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{Context, ContextBase, ObjectContext, ObjectSharedContext};
+    use restate::{ContextBase, ObjectContext, ObjectSharedContext};
     use serde::{Deserialize, Serialize};
     use std::{future, time::Duration};
 
@@ -32,7 +32,7 @@ mod bundle {
         const TYPE: &'static str = "VIRTUAL_OBJECT";
 
         #[restate::handler]
-        pub async fn count(ctx: ObjectContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+        pub async fn increment(ctx: ObjectContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             let (id, result) = ctx.awakeable::<SignalInput>();
             ctx.run(move || {
                 let id = id.clone();
@@ -48,7 +48,8 @@ mod bundle {
             Ok(ExecOutput { test: name.test })
         }
 
-        pub async fn pending() -> Result<(), anyhow::Error> {
+        #[restate::handler]
+        pub async fn count(ctx: ObjectSharedContext, name: SignalInput) -> Result<(), anyhow::Error> {
             future::pending::<()>().await;
             Ok(())
         }

@@ -11,6 +11,10 @@ use syn::{
     Lit, Pat, Receiver, Stmt, Type,
 };
 
+const SERVICE_ATTRIBUTE: &str = "restate::service";
+const OBJECT_ATTRIBUTE: &str = "restate::object";
+const WORKFLOW_ATTRIBUTE: &str = "restate::workflow";
+
 #[proc_macro_attribute]
 #[cfg(not(test))]
 pub fn main(args: TokenStream, item: TokenStream) -> TokenStream {
@@ -38,8 +42,20 @@ pub fn bundle(args: TokenStream, item: TokenStream) -> TokenStream {
                 for item in items {
                     match item {
                         Item::Impl(item) => {
-                            if match_attribute("restate::service", &item.attrs) {
-                                services.push(create_service_manifest(&item))
+                            if let Some(attr) = find_attribute(
+                                &[SERVICE_ATTRIBUTE, OBJECT_ATTRIBUTE, WORKFLOW_ATTRIBUTE],
+                                &item.attrs,
+                            ) {
+                                let service_type = if attr.eq(SERVICE_ATTRIBUTE) {
+                                    ServiceType::Service
+                                } else if attr.eq(OBJECT_ATTRIBUTE) {
+                                    ServiceType::VirtualObject
+                                } else if attr.eq(WORKFLOW_ATTRIBUTE) {
+                                    ServiceType::Workflow
+                                } else {
+                                    panic!("Invalid service type");
+                                };
+                                services.push(create_service_manifest(service_type, &item))
                             }
                         }
                         _ => {}
@@ -139,7 +155,7 @@ fn handler_methods(service: &Service) -> Vec<proc_macro2::TokenStream> {
     routes
 }
 
-fn create_service_manifest(item: &ItemImpl) -> Service {
+fn create_service_manifest(service_type: ServiceType, item: &ItemImpl) -> Service {
     let service_name = match item.self_ty.as_ref() {
         Type::Path(path) => path.path.segments[0].ident.to_string(),
         _ => {
@@ -149,7 +165,7 @@ fn create_service_manifest(item: &ItemImpl) -> Service {
     let mut service = Service {
         handlers: vec![],
         name: ServiceName::try_from(&service_name).unwrap(),
-        ty: ServiceType::Service,
+        ty: service_type,
     };
     for item in item.items.iter() {
         match item {
@@ -174,14 +190,24 @@ fn create_service_manifest(item: &ItemImpl) -> Service {
             }
             ImplItem::Fn(handler) => {
                 if handler.sig.asyncness.is_some() {
-                    if match_attribute("restate::handler", &handler.attrs) {
+                    if find_attribute(&["restate::handler"], &handler.attrs).is_some() {
                         let name = handler.sig.ident.to_string();
+                        let handler_type = match service_type {
+                            ServiceType::VirtualObject => Some(HandlerType::Exclusive),
+                            ServiceType::Service => None,
+                            ServiceType::Workflow => {
+                                if name.eq("run") {
+                                    Some(HandlerType::Workflow)
+                                } else {
+                                    Some(HandlerType::Shared)
+                                }
+                            }
+                        };
                         service.handlers.push(Handler {
                             input: None,
                             name: HandlerName::try_from(name).unwrap(),
                             output: None,
-                            //ty: Some(HandlerType::Exclusive),
-                            ty: None,
+                            ty: handler_type,
                         })
                     }
                 }
@@ -213,7 +239,7 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
             ImplItem::Const(_) => {}
             ImplItem::Fn(handler) => {
                 if handler.sig.asyncness.is_some() {
-                    if match_attribute("restate::handler", &handler.attrs) {
+                    if find_attribute(&["restate::handler"], &handler.attrs).is_some() {
                         println!("Handler {}", handler.sig.ident.to_string());
                         let method = create_service_client_fn(service_name.clone(), handler);
                         methods.push(method);
@@ -261,6 +287,154 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
      */
+}
+
+#[proc_macro_attribute]
+#[cfg(not(test))]
+pub fn object(args: TokenStream, item: TokenStream) -> TokenStream {
+    let service = syn::parse_macro_input!(item as ItemImpl);
+    let service_name = match service.self_ty.as_ref() {
+        Type::Path(path) => {
+            let service = path.path.segments[0].ident.to_string();
+            format_ident!("{}", service)
+        }
+        _ => {
+            panic!("Only on impl struct");
+        }
+    };
+    let mut methods = vec![];
+    for item in service.items.iter() {
+        match item {
+            ImplItem::Const(_) => {}
+            ImplItem::Fn(handler) => {
+                if handler.sig.asyncness.is_some() {
+                    if find_attribute(&["restate::handler"], &handler.attrs).is_some() {
+                        println!("Handler {}", handler.sig.ident.to_string());
+                        let method = create_service_client_fn(service_name.clone(), handler);
+                        methods.push(method);
+                    }
+                }
+            }
+            _ => {
+                panic!("Only consts and fns");
+            }
+        }
+    }
+    let service_client = format_ident!("{}ClientImpl", service_name.to_string());
+    let service_client_ext = format_ident!("{}ClientExt", service_name.to_string());
+    let service_client_indent = service_name.to_string().to_case(Case::Snake);
+    let service_client_indent = format_ident!("{}_client", service_client_indent);
+    quote!(
+        pub struct #service_name;
+        #service
+        struct #service_client<'a> {
+            ctx: &'a ObjectContext,
+        }
+        impl<'a> #service_client<'a> {
+           #(#methods)*
+        }
+        trait #service_client_ext {
+            fn #service_client_indent(&self) -> #service_client;
+        }
+
+        impl #service_client_ext for ObjectContext {
+            fn #service_client_indent(&self) -> #service_client {
+                #service_client { ctx: &self }
+            }
+        }
+    )
+    .into()
+
+    /*
+    impl ServiceHandler for #service_name {
+            fn name(&self) -> &'static str {
+                Self::NAME
+            }
+
+            fn handlers(&self) -> &'static [&'static str] {
+                &["service", "greet"]
+            }
+        }
+     */
+}
+
+#[proc_macro_attribute]
+#[cfg(not(test))]
+pub fn workflow(args: TokenStream, item: TokenStream) -> TokenStream {
+    let service = syn::parse_macro_input!(item as ItemImpl);
+    let service_name = match service.self_ty.as_ref() {
+        Type::Path(path) => {
+            let service = path.path.segments[0].ident.to_string();
+            format_ident!("{}", service)
+        }
+        _ => {
+            panic!("Only on impl struct");
+        }
+    };
+    let mut methods = vec![];
+    for item in service.items.iter() {
+        match item {
+            ImplItem::Const(_) => {}
+            ImplItem::Fn(handler) => {
+                if handler.sig.asyncness.is_some() {
+                    if find_attribute(&["restate::handler"], &handler.attrs).is_some() {
+                        println!("Handler {}", handler.sig.ident.to_string());
+                        let method = create_service_client_fn(service_name.clone(), handler);
+                        methods.push(method);
+                    }
+                }
+            }
+            _ => {
+                panic!("Only consts and fns");
+            }
+        }
+    }
+    let service_client = format_ident!("{}ClientImpl", service_name.to_string());
+    let service_client_ext = format_ident!("{}ClientExt", service_name.to_string());
+    let service_client_indent = service_name.to_string().to_case(Case::Snake);
+    let service_client_indent = format_ident!("{}_client", service_client_indent);
+    quote!(
+        pub struct #service_name;
+        #service
+        struct #service_client<'a> {
+            ctx: &'a WorkflowContext,
+        }
+        impl<'a> #service_client<'a> {
+           #(#methods)*
+        }
+        trait #service_client_ext {
+            fn #service_client_indent(&self) -> #service_client;
+        }
+
+        impl #service_client_ext for WorkflowContext {
+            fn #service_client_indent(&self) -> #service_client {
+                #service_client { ctx: &self }
+            }
+        }
+    )
+    .into()
+
+    /*
+    impl ServiceHandler for #service_name {
+            fn name(&self) -> &'static str {
+                Self::NAME
+            }
+
+            fn handlers(&self) -> &'static [&'static str] {
+                &["service", "greet"]
+            }
+        }
+     */
+}
+
+#[proc_macro_attribute]
+#[cfg(not(test))]
+pub fn handler(args: TokenStream, item: TokenStream) -> TokenStream {
+    let handler = syn::parse_macro_input!(item as ItemFn);
+    quote!(
+        #handler
+    )
+    .into()
 }
 
 fn create_service_client_fn(service: proc_macro2::Ident, handler: &ImplItemFn) -> proc_macro2::TokenStream {
@@ -315,174 +489,18 @@ fn create_service_client_fn(service: proc_macro2::Ident, handler: &ImplItemFn) -
     .into()
 }
 
-#[proc_macro_attribute]
-#[cfg(not(test))]
-pub fn handler(args: TokenStream, item: TokenStream) -> TokenStream {
-    let handler = syn::parse_macro_input!(item as ItemFn);
-    quote!(
-        #handler
-    )
-    .into()
-}
-
-#[proc_macro_attribute]
-#[cfg(not(test))]
-pub fn object(args: TokenStream, item: TokenStream) -> TokenStream {
-    let service = syn::parse_macro_input!(item as ItemImpl);
-    let service_name = match service.self_ty.as_ref() {
-        Type::Path(path) => {
-            let service = path.path.segments[0].ident.to_string();
-            format_ident!("{}", service)
-        }
-        _ => {
-            panic!("Only on impl struct");
-        }
-    };
-    let mut methods = vec![];
-    for item in service.items.iter() {
-        match item {
-            ImplItem::Const(_) => {}
-            ImplItem::Fn(handler) => {
-                if handler.sig.asyncness.is_some() {
-                    if match_attribute("restate::handler", &handler.attrs) {
-                        println!("Handler {}", handler.sig.ident.to_string());
-                        let method = create_service_client_fn(service_name.clone(), handler);
-                        methods.push(method);
-                    }
-                }
-            }
-            _ => {
-                panic!("Only consts and fns");
-            }
-        }
-    }
-    let service_client = format_ident!("{}ClientImpl", service_name.to_string());
-    let service_client_ext = format_ident!("{}ClientExt", service_name.to_string());
-    let service_client_indent = service_name.to_string().to_case(Case::Snake);
-    let service_client_indent = format_ident!("{}_client", service_client_indent);
-    quote!(
-        pub struct #service_name;
-        #service
-        struct #service_client<'a> {
-            ctx: &'a Context,
-        }
-        impl<'a> #service_client<'a> {
-           #(#methods)*
-        }
-        trait #service_client_ext {
-            fn #service_client_indent(&self) -> #service_client;
-        }
-
-        impl #service_client_ext for Context {
-            fn #service_client_indent(&self) -> #service_client {
-                #service_client { ctx: &self }
-            }
-        }
-    )
-    .into()
-
-    /*
-    impl ServiceHandler for #service_name {
-            fn name(&self) -> &'static str {
-                Self::NAME
-            }
-
-            fn handlers(&self) -> &'static [&'static str] {
-                &["service", "greet"]
-            }
-        }
-     */
-}
-
-#[proc_macro_attribute]
-#[cfg(not(test))]
-pub fn workflow(args: TokenStream, item: TokenStream) -> TokenStream {
-    let service = syn::parse_macro_input!(item as ItemImpl);
-    let service_name = match service.self_ty.as_ref() {
-        Type::Path(path) => {
-            let service = path.path.segments[0].ident.to_string();
-            format_ident!("{}", service)
-        }
-        _ => {
-            panic!("Only on impl struct");
-        }
-    };
-    let mut methods = vec![];
-    for item in service.items.iter() {
-        match item {
-            ImplItem::Const(_) => {}
-            ImplItem::Fn(handler) => {
-                if handler.sig.asyncness.is_some() {
-                    if match_attribute("restate::handler", &handler.attrs) {
-                        println!("Handler {}", handler.sig.ident.to_string());
-                        let method = create_service_client_fn(service_name.clone(), handler);
-                        methods.push(method);
-                    }
-                }
-            }
-            _ => {
-                panic!("Only consts and fns");
-            }
-        }
-    }
-    let service_client = format_ident!("{}ClientImpl", service_name.to_string());
-    let service_client_ext = format_ident!("{}ClientExt", service_name.to_string());
-    let service_client_indent = service_name.to_string().to_case(Case::Snake);
-    let service_client_indent = format_ident!("{}_client", service_client_indent);
-    quote!(
-        pub struct #service_name;
-        #service
-        struct #service_client<'a> {
-            ctx: &'a Context,
-        }
-        impl<'a> #service_client<'a> {
-           #(#methods)*
-        }
-        trait #service_client_ext {
-            fn #service_client_indent(&self) -> #service_client;
-        }
-
-        impl #service_client_ext for Context {
-            fn #service_client_indent(&self) -> #service_client {
-                #service_client { ctx: &self }
-            }
-        }
-    )
-    .into()
-
-    /*
-    impl ServiceHandler for #service_name {
-            fn name(&self) -> &'static str {
-                Self::NAME
-            }
-
-            fn handlers(&self) -> &'static [&'static str] {
-                &["service", "greet"]
-            }
-        }
-     */
-}
-
-#[proc_macro_attribute]
-#[cfg(not(test))]
-pub fn run(args: TokenStream, item: TokenStream) -> TokenStream {
-    let run = syn::parse_macro_input!(item as ItemFn);
-    quote!(
-        #run
-    )
-    .into()
-}
-
-fn match_attribute(name: &'static str, attrs: &Vec<Attribute>) -> bool {
-    attrs.iter().any(|attribute| {
-        attribute
-            .meta
-            .path()
-            .segments
-            .iter()
-            .map(|s| s.ident.to_string())
-            .collect::<Vec<_>>()
-            .join("::")
-            .eq(name)
-    })
+fn find_attribute(names: &[&'static str], attrs: &Vec<Attribute>) -> Option<String> {
+    attrs
+        .iter()
+        .map(|attribute| {
+            attribute
+                .meta
+                .path()
+                .segments
+                .iter()
+                .map(|s| s.ident.to_string())
+                .collect::<Vec<_>>()
+                .join("::")
+        })
+        .find(|attribute| names.iter().any(|name| attribute.eq(name)))
 }

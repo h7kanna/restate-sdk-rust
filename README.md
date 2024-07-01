@@ -34,11 +34,18 @@ curl -v localhost:8080/Service/service -H 'content-type: application/json' -d '{
 
 curl -v localhost:8080/Service/service -H 'content-type: application/json' -H 'idempotency-key: example' -d '{"test": "test"}'
 
-curl -v localhost:8080/restate/awakeables/prom_1YwTpVjSWlMQBkGYN97hMFMZ8ypbhiXMdAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
+curl -v localhost:8080/ObjectService/workflow1/increment -H 'content-type: application/json' -d '{"test": "test"}'
+
+curl -v localhost:8080/ObjectService/workflow1/count -H 'content-type: application/json' -d '{"test": "test"}'
+
+curl -v localhost:8080/WorkflowService/workflow1/run -H 'content-type: application/json' -d '{"test": "test"}'
+
+curl -v localhost:8080/restate/awakeables/prom_15-4e7a6rR9MBkG8D6GBJYiYA4ZMbQyekAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
 ```
 
 ```shell
 restate invocations list
+restate invocations describe inv_1i8DzzOL6iN178sv2hRPz1aZ32v3lNyhWh
 restate invocations cancel --yes inv_1gSomuaZJqT10TzzSN1nTOFycg8aggtPrj
 ```
 
