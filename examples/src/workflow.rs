@@ -7,7 +7,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{ContextBase, WorkflowContext, WorkflowSharedContext};
+    use restate::{
+        ContextBase, ContextWorkflowShared, DurablePromise, WorkflowContext, WorkflowSharedContext,
+    };
     use serde::{Deserialize, Serialize};
     use std::{future, time::Duration};
 
@@ -50,6 +52,7 @@ mod bundle {
 
         #[restate::handler]
         pub async fn signal(ctx: WorkflowSharedContext, name: SignalInput) -> Result<(), anyhow::Error> {
+            ctx.promise("await_user".to_string()).resolve(Some(name)).await;
             future::pending::<()>().await;
             Ok(())
         }
