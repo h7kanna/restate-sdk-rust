@@ -29,7 +29,7 @@ mod bundle {
     #[restate::object]
     impl ObjectService {
         const NAME: &'static str = "ObjectService";
-        const TYPE: &'static str = "OBJECT";
+        const TYPE: &'static str = "VIRTUAL_OBJECT";
 
         #[restate::handler]
         pub async fn count(ctx: ObjectContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
