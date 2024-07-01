@@ -173,7 +173,6 @@ impl Future for GetPromiseFuture {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 

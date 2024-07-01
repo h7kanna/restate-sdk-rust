@@ -15,9 +15,13 @@ use restate_sdk_types::journal::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    future,
     future::Future,
+    marker::PhantomData,
     ops::Add,
+    pin::Pin,
     sync::Arc,
+    task::Poll,
     time::{Duration, SystemTime},
 };
 
@@ -168,7 +172,7 @@ pub trait ContextKeyed: ContextData {
     }
 }
 
-pub trait ContextShared: ContextKeyed {
+pub trait KeyValueStoreReadOnly {
     fn get<V>(&self, name: String) -> impl Future<Output = Option<V>>
     where
         for<'a> V: Serialize + Deserialize<'a>,
@@ -194,18 +198,12 @@ pub trait ContextShared: ContextKeyed {
     }
 }
 
-pub trait KeyValueStore: ContextData {
-    fn get<V>(&self) -> impl Future<Output = Option<V>>
-    where
-        for<'a> V: Serialize + Deserialize<'a>,
-    {
-        async move {
-            let bytes = Bytes::new();
-            let bytes = bytes.to_vec();
-            let result: V = serde_json::from_slice(&bytes).unwrap();
-            Some(result)
-        }
-    }
+pub trait KeyValueStore: KeyValueStoreReadOnly {
+    fn set<V>(&self, name: String, value: V) {}
+
+    fn clear(&self, name: String) {}
+
+    fn clear_all(&self) {}
 }
 
 #[derive(Clone)]
@@ -219,6 +217,20 @@ context_data_impl!(Context);
 impl ContextBase for Context {}
 
 #[derive(Clone)]
+pub struct ObjectSharedContext {
+    request: Request,
+    state_machine: Arc<Mutex<StateMachine>>,
+}
+
+context_data_impl!(ObjectSharedContext);
+
+impl ContextBase for ObjectSharedContext {}
+
+impl ContextKeyed for ObjectSharedContext {}
+
+impl KeyValueStoreReadOnly for ObjectSharedContext {}
+
+#[derive(Clone)]
 pub struct ObjectContext {
     request: Request,
     state_machine: Arc<Mutex<StateMachine>>,
@@ -230,15 +242,9 @@ impl ContextBase for ObjectContext {}
 
 impl ContextKeyed for ObjectContext {}
 
+impl KeyValueStoreReadOnly for ObjectContext {}
+
 impl KeyValueStore for ObjectContext {}
-
-#[derive(Clone)]
-pub struct ObjectSharedContext {
-    request: Request,
-    state_machine: Arc<Mutex<StateMachine>>,
-}
-
-context_data_impl!(ObjectSharedContext);
 
 pub trait CombinablePromise<T>: Future<Output = T> {
     fn or_timeout(&self, millis: u64) -> impl Future<Output = T>;
@@ -246,13 +252,15 @@ pub trait CombinablePromise<T>: Future<Output = T> {
 
 pub trait DurablePromise<T>: Future<Output = T> {
     fn peek(&self) -> impl Future<Output = Option<T>>;
-    fn resolve(&self, value: Option<T>) -> impl Future<Output = ()>;
+    fn resolve(&self, value: Option<T>) -> impl Future<Output = T>;
     fn reject(&self, message: String) -> impl Future<Output = ()>;
     fn get(&self) -> impl CombinablePromise<T>;
 }
 
-pub trait ContextWorkflowShared<T> {
-    fn promise(name: String) -> impl DurablePromise<T>;
+pub trait ContextWorkflowShared<T>: ContextInstance {
+    fn promise(&self, name: String) -> impl DurablePromise<T> {
+        DurablePromiseImpl::new(self.state_machine().clone())
+    }
 }
 
 #[derive(Clone)]
@@ -262,6 +270,8 @@ pub struct WorkflowSharedContext {
 }
 
 context_data_impl!(WorkflowSharedContext);
+
+impl<T> ContextWorkflowShared<T> for WorkflowSharedContext {}
 
 #[derive(Clone)]
 pub struct WorkflowContext {
@@ -275,7 +285,85 @@ impl ContextBase for WorkflowContext {}
 
 impl ContextKeyed for WorkflowContext {}
 
+impl KeyValueStoreReadOnly for WorkflowContext {}
+
 impl KeyValueStore for WorkflowContext {}
+
+impl<T> ContextWorkflowShared<T> for WorkflowContext {}
+
+pub struct CombinablePromiseImpl<T> {
+    entry_index: u32,
+    state_machine: Arc<Mutex<StateMachine>>,
+    _ret: PhantomData<T>,
+}
+
+impl<T> CombinablePromiseImpl<T> {
+    pub fn new(state_machine: Arc<Mutex<StateMachine>>) -> Self {
+        let entry_index = state_machine.lock().get_next_user_code_journal_index();
+        Self {
+            entry_index,
+            state_machine,
+            _ret: PhantomData,
+        }
+    }
+}
+
+impl<T> Future for CombinablePromiseImpl<T> {
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        Poll::<T>::Pending
+    }
+}
+
+impl<T> CombinablePromise<T> for CombinablePromiseImpl<T> {
+    fn or_timeout(&self, millis: u64) -> impl Future<Output = T> {
+        async { future::pending::<T>().await }
+    }
+}
+
+pub struct DurablePromiseImpl<T> {
+    entry_index: u32,
+    state_machine: Arc<Mutex<StateMachine>>,
+    _ret: PhantomData<T>,
+}
+
+impl<T> DurablePromiseImpl<T> {
+    pub fn new(state_machine: Arc<Mutex<StateMachine>>) -> Self {
+        let entry_index = state_machine.lock().get_next_user_code_journal_index();
+        Self {
+            entry_index,
+            state_machine,
+            _ret: PhantomData,
+        }
+    }
+}
+
+impl<T> Future for DurablePromiseImpl<T> {
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        Poll::<T>::Pending
+    }
+}
+
+impl<T> DurablePromise<T> for DurablePromiseImpl<T> {
+    fn peek(&self) -> impl Future<Output = Option<T>> {
+        async { Some(future::pending::<T>().await) }
+    }
+
+    fn resolve(&self, value: Option<T>) -> impl Future<Output = T> {
+        async { future::pending::<T>().await }
+    }
+
+    fn reject(&self, message: String) -> impl Future<Output = ()> {
+        async { future::pending::<()>().await }
+    }
+
+    fn get(&self) -> impl CombinablePromise<T> {
+        CombinablePromiseImpl::new(self.state_machine.clone())
+    }
+}
 
 #[cfg(test)]
 mod tests {
