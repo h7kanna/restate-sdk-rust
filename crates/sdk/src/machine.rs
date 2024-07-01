@@ -1,6 +1,6 @@
 use crate::{
     connection::{MessageSender, RestateStreamConsumer},
-    context::{ContextData, Request},
+    context::{ContextData, ContextInstance, Request},
     invocation::Invocation,
     journal::Journal,
     logger::Logger,
@@ -73,7 +73,7 @@ impl StateMachine {
         for<'a> I: Serialize + Deserialize<'a>,
         for<'a> R: Serialize + Deserialize<'a>,
         F: ServiceHandler<C, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
-        C: ContextData,
+        C: ContextInstance,
     {
         let input = state_machine.lock().input.clone().unwrap();
         let input = serde_json::from_slice(&input.to_vec()).unwrap();

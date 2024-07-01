@@ -37,23 +37,28 @@ pub trait ContextDate {
 }
 
 pub trait ContextData {
-    fn new(request: Request, state_machine: Arc<Mutex<StateMachine>>) -> Self;
     fn request(&self) -> &Request;
+}
+
+pub(crate) trait ContextInstance: ContextData {
+    fn new(request: Request, state_machine: Arc<Mutex<StateMachine>>) -> Self;
     fn state_machine(&self) -> Arc<Mutex<StateMachine>>;
 }
 
 macro_rules! context_data_impl {
     ($test:tt) => {
         impl ContextData for $test {
+            fn request(&self) -> &Request {
+                &self.request
+            }
+        }
+
+        impl ContextInstance for $test {
             fn new(request: Request, state_machine: Arc<Mutex<StateMachine>>) -> Self {
                 $test {
                     request,
                     state_machine,
                 }
-            }
-
-            fn request(&self) -> &Request {
-                &self.request
             }
 
             fn state_machine(&self) -> Arc<Mutex<StateMachine>> {
@@ -63,7 +68,7 @@ macro_rules! context_data_impl {
     };
 }
 
-pub trait ContextBase: ContextData {
+pub trait ContextBase: ContextInstance {
     fn awakeable<R>(&self) -> (String, impl Future<Output = Result<R, Error>> + '_)
     where
         for<'a> R: Serialize + Deserialize<'a>,
@@ -131,7 +136,7 @@ pub trait ContextBase: ContextData {
         for<'a> I: Serialize + Deserialize<'a>,
         for<'a> R: Serialize + Deserialize<'a>,
         F: ServiceHandler<C, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
-        C: ContextData,
+        C: ContextInstance,
     {
         let parameter = serde_json::to_string(&parameter).unwrap();
         async move {

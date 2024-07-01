@@ -1,6 +1,6 @@
 use crate::{
     connection::{MessageReceiver, MessageSender, RestateStreamConsumer},
-    context::ContextData,
+    context::ContextInstance,
     invocation::InvocationBuilder,
     machine::StateMachine,
 };
@@ -20,7 +20,7 @@ pub async fn handle_invocation<C, F, I, R>(
     for<'a> I: Serialize + Deserialize<'a>,
     for<'a> R: Serialize + Deserialize<'a>,
     F: ServiceHandler<C, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
-    C: ContextData,
+    C: ContextInstance,
 {
     let token = token.unwrap_or_else(|| CancellationToken::new());
 
