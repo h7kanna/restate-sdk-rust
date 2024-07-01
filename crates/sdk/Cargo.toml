@@ -16,7 +16,7 @@ base64 = { workspace = true }
 bytes = { workspace = true }
 bytes-utils = { workspace = true }
 bytestring = { workspace = true }
-dashmap = "5.5.3"
+dashmap = "6.0.1"
 derive-new = { workspace = true }
 derive_builder = { workspace = true }
 derive_more = { workspace = true }

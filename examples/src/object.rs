@@ -7,7 +7,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{Context, ContextBase, WorkflowContext};
+    use restate::{Context, ContextBase, ObjectContext, ObjectSharedContext};
     use serde::{Deserialize, Serialize};
     use std::{future, time::Duration};
 
@@ -26,13 +26,13 @@ mod bundle {
         test: String,
     }
 
-    #[restate::workflow]
-    impl WorkflowService {
-        const NAME: &'static str = "WorkflowService";
-        const TYPE: &'static str = "WORKFLOW";
+    #[restate::object]
+    impl ObjectService {
+        const NAME: &'static str = "ObjectService";
+        const TYPE: &'static str = "OBJECT";
 
-        #[restate::run]
-        pub async fn run(ctx: WorkflowContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
+        #[restate::handler]
+        pub async fn count(ctx: ObjectContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             let (id, result) = ctx.awakeable::<SignalInput>();
             ctx.run(move || {
                 let id = id.clone();

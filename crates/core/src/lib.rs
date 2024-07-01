@@ -46,40 +46,6 @@ where
     type OutputFuture = Fut;
 }
 
-/// Trait to represent an object handler
-pub trait ObjectHandler<Arg0, Arg1>: Fn(Arg0, Arg1) -> Self::OutputFuture {
-    /// Output type of the async function
-    type Output;
-    /// Future of the output
-    type OutputFuture: Future<Output = <Self as ObjectHandler<Arg0, Arg1>>::Output> + Send + 'static;
-}
-
-impl<F: ?Sized, Fut, Arg0, Arg1> ObjectHandler<Arg0, Arg1> for F
-where
-    F: Fn(Arg0, Arg1) -> Fut,
-    Fut: Future + Send + 'static,
-{
-    type Output = Fut::Output;
-    type OutputFuture = Fut;
-}
-
-/// Trait to represent a workflow handler
-pub trait WorkflowHandler<Arg0, Arg1>: Fn(Arg0, Arg1) -> Self::OutputFuture {
-    /// Output type of the async function
-    type Output;
-    /// Future of the output
-    type OutputFuture: Future<Output = <Self as WorkflowHandler<Arg0, Arg1>>::Output> + Send + 'static;
-}
-
-impl<F: ?Sized, Fut, Arg0, Arg1> WorkflowHandler<Arg0, Arg1> for F
-where
-    F: Fn(Arg0, Arg1) -> Fut,
-    Fut: Future + Send + 'static,
-{
-    type Output = Fut::Output;
-    type OutputFuture = Fut;
-}
-
 pub trait Service<Request> {
     /// Responses given by the service.
     type Response;

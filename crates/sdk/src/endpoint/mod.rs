@@ -7,6 +7,7 @@ use prost::Message;
 use std::{future::Future, net::SocketAddr};
 use tokio::net::TcpListener;
 
+mod handler;
 pub mod http2_handler;
 mod service;
 

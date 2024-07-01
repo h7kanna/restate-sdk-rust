@@ -1,7 +1,7 @@
 # Restate Rust SDK
 
 ```shell
-curl --http2-prior-knowledge localhost:3000/discover -XPOST
+curl --http2-prior-knowledge localhost:3000/discover
 curl --http2-prior-knowledge localhost:3000/greet -XPOST -d "hello world"
 
 curl --http2-prior-knowledge localhost:3000/invoke/Greeter/greet2 -XPOST -d "hello world"

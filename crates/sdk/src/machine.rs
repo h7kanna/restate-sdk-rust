@@ -1,6 +1,6 @@
 use crate::{
     connection::{MessageSender, RestateStreamConsumer},
-    context::{Context, Request},
+    context::{ContextData, Request},
     invocation::Invocation,
     journal::Journal,
     logger::Logger,
@@ -65,21 +65,22 @@ impl StateMachine {
         )
     }
 
-    pub async fn invoke<F, I, R>(
+    pub async fn invoke<C, F, I, R>(
         token: CancellationToken,
         handler: F,
         state_machine: Arc<Mutex<StateMachine>>,
     ) where
         for<'a> I: Serialize + Deserialize<'a>,
         for<'a> R: Serialize + Deserialize<'a>,
-        F: ServiceHandler<Context, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+        F: ServiceHandler<C, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+        C: ContextData,
     {
         let input = state_machine.lock().input.clone().unwrap();
         let input = serde_json::from_slice(&input.to_vec()).unwrap();
         let request = Request {
             id: state_machine.lock().journal.invocation().id.clone(),
         };
-        let ctx = Context::new(request, state_machine.clone());
+        let ctx = C::new(request, state_machine.clone());
         tokio::select! {
             _ = token.cancelled() => {
                println!("State machine cancelled");

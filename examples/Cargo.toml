@@ -37,6 +37,12 @@ required-features = []
 
 [[example]]
 doc = false
+name = "object"
+path = "src/object.rs"
+required-features = []
+
+[[example]]
+doc = false
 name = "workflow"
 path = "src/workflow.rs"
 required-features = []

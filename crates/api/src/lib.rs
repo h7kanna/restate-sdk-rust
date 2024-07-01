@@ -8,7 +8,10 @@ pub use http_body_util::{combinators::BoxBody, BodyExt};
 pub use hyper::{body::Incoming, Result};
 pub use restate_sdk::{
     connection::*,
-    context::{Context, ObjectContext, WorkflowContext},
+    context::{
+        Context, ContextBase, ContextData, ContextDate, KeyValueStore, ObjectContext, ObjectSharedContext,
+        WorkflowContext, WorkflowSharedContext,
+    },
     endpoint::{self, *},
 };
 pub use restate_sdk_client::{HttpIngress, Ingress};
