@@ -54,7 +54,7 @@ pub(crate) trait ContextInstance: ContextData {
 }
 
 macro_rules! context_data_impl {
-    ($test:tt) => {
+    ($test:ident) => {
         impl ContextData for $test {
             fn request(&self) -> &Request {
                 &self.request

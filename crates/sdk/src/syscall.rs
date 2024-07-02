@@ -15,7 +15,7 @@ use std::{
 };
 
 macro_rules! future_impl {
-    ($future:tt, $entry:tt) => {
+    ($future:ident, $entry:ident) => {
         impl $future {
             pub fn new(entry: $entry, state_machine: Arc<Mutex<StateMachine>>) -> Self {
                 let entry_index = state_machine.lock().get_next_user_code_journal_index();
