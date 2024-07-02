@@ -299,22 +299,24 @@ pub trait CombinablePromise<T: Send>: Future<Output = T> + Send {
     fn or_timeout(&self, millis: u64) -> impl Future<Output = T> + Send;
 }
 
-pub trait DurablePromise<T: Send>
-where
-    for<'a> T: Serialize + Deserialize<'a>,
-{
-    fn peek(&self) -> impl Future<Output = Option<T>> + Send;
-    fn resolve(&self, value: T) -> impl Future<Output = ()> + Send;
+pub trait DurablePromise {
+    fn peek<T: Send>(&self) -> impl Future<Output = Option<T>> + Send
+    where
+        for<'a> T: Serialize + Deserialize<'a>;
+    fn resolve<T: Send>(&self, value: T) -> impl Future<Output = ()> + Send
+    where
+        for<'a> T: Serialize + Deserialize<'a>;
     fn reject(&self, message: String) -> impl Future<Output = ()> + Send;
-    fn get(&self) -> impl CombinablePromise<T>;
-    fn awaitable(&self) -> impl Future<Output = T> + Send;
+    fn get<T: Send>(&self) -> impl CombinablePromise<T>
+    where
+        for<'a> T: Serialize + Deserialize<'a>;
+    fn awaitable<T: Send>(&self) -> impl Future<Output = T> + Send
+    where
+        for<'a> T: Serialize + Deserialize<'a>;
 }
 
-pub trait ContextWorkflowShared<T: Send>: ContextInstance
-where
-    for<'a> T: Serialize + Deserialize<'a>,
-{
-    fn promise<N: AsRef<str>>(&self, name: N) -> impl DurablePromise<T> {
+pub trait ContextWorkflowShared: ContextInstance {
+    fn promise<N: AsRef<str>>(&self, name: N) -> impl DurablePromise {
         DurablePromiseImpl::new(name.as_ref().to_string(), self.state_machine().clone())
     }
 }
@@ -327,7 +329,7 @@ pub struct WorkflowSharedContext {
 
 context_data_impl!(WorkflowSharedContext);
 
-impl<T: Send> ContextWorkflowShared<T> for WorkflowSharedContext where for<'a> T: Serialize + Deserialize<'a> {}
+impl ContextWorkflowShared for WorkflowSharedContext {}
 
 #[derive(Clone)]
 pub struct WorkflowContext {
@@ -345,7 +347,7 @@ impl KeyValueStoreReadOnly for WorkflowContext {}
 
 impl KeyValueStore for WorkflowContext {}
 
-impl<T: Send> ContextWorkflowShared<T> for WorkflowContext where for<'a> T: Serialize + Deserialize<'a> {}
+impl ContextWorkflowShared for WorkflowContext {}
 
 pub struct CombinablePromiseImpl<T> {
     entry_index: u32,
@@ -378,27 +380,22 @@ impl<T: Send> CombinablePromise<T> for CombinablePromiseImpl<T> {
     }
 }
 
-pub struct DurablePromiseImpl<T> {
+pub struct DurablePromiseImpl {
     name: String,
     state_machine: Arc<Mutex<StateMachine>>,
-    _ret: PhantomData<T>,
 }
 
-impl<T> DurablePromiseImpl<T> {
+impl DurablePromiseImpl {
     pub fn new(name: String, state_machine: Arc<Mutex<StateMachine>>) -> Self {
-        Self {
-            name,
-            state_machine,
-            _ret: PhantomData,
-        }
+        Self { name, state_machine }
     }
 }
 
-impl<T: Send> DurablePromise<T> for DurablePromiseImpl<T>
-where
-    for<'a> T: Serialize + Deserialize<'a>,
-{
-    fn peek(&self) -> impl Future<Output = Option<T>> {
+impl DurablePromise for DurablePromiseImpl {
+    fn peek<T: Send>(&self) -> impl Future<Output = Option<T>>
+    where
+        for<'a> T: Serialize + Deserialize<'a>,
+    {
         let peek_promise = PeekPromiseFuture::new(
             PeekPromiseEntry {
                 key: self.name.clone().into(),
@@ -418,7 +415,10 @@ where
         }
     }
 
-    fn resolve(&self, value: T) -> impl Future<Output = ()> {
+    fn resolve<T: Send>(&self, value: T) -> impl Future<Output = ()>
+    where
+        for<'a> T: Serialize + Deserialize<'a>,
+    {
         let value = serde_json::to_string(&value).unwrap();
         CompletePromiseFuture::new(
             CompletePromiseEntry {
@@ -441,11 +441,17 @@ where
         )
     }
 
-    fn get(&self) -> impl CombinablePromise<T> {
+    fn get<T: Send>(&self) -> impl CombinablePromise<T>
+    where
+        for<'a> T: Serialize + Deserialize<'a>,
+    {
         CombinablePromiseImpl::new(self.state_machine.clone())
     }
 
-    fn awaitable(&self) -> impl Future<Output = T> {
+    fn awaitable<T: Send>(&self) -> impl Future<Output = T> + Send
+    where
+        for<'a> T: Serialize + Deserialize<'a>,
+    {
         let get_promise = GetPromiseFuture::new(
             GetPromiseEntry {
                 key: self.name.clone().into(),
