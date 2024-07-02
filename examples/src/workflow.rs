@@ -34,14 +34,17 @@ mod bundle {
 
         #[restate::handler]
         pub async fn run(ctx: WorkflowContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            let signal_input: SignalInput = ctx.promise("await_user".to_string()).awaitable().await;
+            let signal_input: SignalInput = ctx.promise("await_user1".to_string()).awaitable().await;
+            println!("Signal output: {:?}", signal_input);
+            let signal_input: SignalInput = ctx.promise("await_user2".to_string()).awaitable().await;
             println!("Signal output: {:?}", signal_input);
             Ok(ExecOutput { test: name.test })
         }
 
         #[restate::handler]
         pub async fn signal(ctx: WorkflowSharedContext, name: SignalInput) -> Result<(), anyhow::Error> {
-            ctx.promise("await_user".to_string()).resolve(Some(name)).await;
+            //ctx.promise("await_user".to_string()).resolve(Some(name)).await;
+            ctx.promise(name.test.clone()).resolve(Some(name)).await;
             Ok(())
         }
     }

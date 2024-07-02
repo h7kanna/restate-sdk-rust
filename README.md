@@ -42,7 +42,9 @@ curl -v localhost:8080/ObjectService/workflow1/count -H 'content-type: applicati
 
 curl -v localhost:8080/WorkflowService/workflow1/run -H 'content-type: application/json' -d '{"test": "test"}'
 
-curl -v localhost:8080/WorkflowService/workflow1/signal -H 'content-type: application/json' -d '{"test": "signal"}'
+curl -v localhost:8080/WorkflowService/workflow1/signal -H 'content-type: application/json' -d '{"test": "await_user1"}'
+
+curl -v localhost:8080/WorkflowService/workflow1/signal -H 'content-type: application/json' -d '{"test": "await_user2"}'
 
 curl -v localhost:8080/restate/awakeables/prom_15-4e7a6rR9MBkG8D6GBJYiYA4ZMbQyekAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
 ```
