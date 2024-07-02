@@ -138,7 +138,7 @@ impl StateMachine {
         &mut self,
         entry_index: u32,
         message: Entry,
-        waker: Waker,
+        waker: Option<Waker>,
     ) -> Option<Bytes> {
         if self.machine_closed {
             // Return fused

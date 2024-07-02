@@ -107,7 +107,7 @@ impl Journal {
         &mut self,
         entry_index: u32,
         entry: Entry,
-        waker: Waker,
+        waker: Option<Waker>,
     ) -> Option<Bytes> {
         println!(
             "Handle user code entry_index: {}, journal_index: {}, state: {:?}, replay_entries: {}",
@@ -125,10 +125,7 @@ impl Journal {
                         .replay_entries
                         .remove(&self.user_code_journal_index)
                     {
-                        let journal_entry = JournalEntry {
-                            entry,
-                            waker: Some(waker),
-                        };
+                        let journal_entry = JournalEntry { entry, waker };
                         return self.handle_replay(entry_index, replay_entry, journal_entry);
                     } else {
                         // Illegal
@@ -337,45 +334,45 @@ impl Journal {
         None
     }
 
-    fn handle_processing(&mut self, entry_index: u32, entry: Entry, waker: Waker) {
+    fn handle_processing(&mut self, entry_index: u32, entry: Entry, waker: Option<Waker>) {
         match entry {
             Entry::Input(_) => {}
             Entry::Output(_) => {
                 self.handle_output_message(entry_index);
             }
             Entry::GetState(_) => {
-                self.append_entry(entry, waker);
+                self.append_entry(entry, waker.unwrap());
             }
             Entry::SetState(_) => {
-                self.append_entry(entry, waker);
+                //self.append_entry(entry, waker);
             }
             Entry::ClearState(_) => {
-                self.append_entry(entry, waker);
+                //self.append_entry(entry, waker);
             }
             Entry::GetStateKeys(_) => {
-                self.append_entry(entry, waker);
+                self.append_entry(entry, waker.unwrap());
             }
             Entry::ClearAllState => {
-                self.append_entry(entry, waker);
+                //self.append_entry(entry, waker.unwrap());
             }
             Entry::GetPromise(_) => {
-                self.append_entry(entry, waker);
+                self.append_entry(entry, waker.unwrap());
             }
             Entry::PeekPromise(_) => {
-                self.append_entry(entry, waker);
+                self.append_entry(entry, waker.unwrap());
             }
             Entry::CompletePromise(_) => {
-                self.append_entry(entry, waker);
+                self.append_entry(entry, waker.unwrap());
             }
             Entry::Sleep(_) => {
-                self.append_entry(entry, waker);
+                self.append_entry(entry, waker.unwrap());
             }
             Entry::Call(_) => {
-                self.append_entry(entry, waker);
+                self.append_entry(entry, waker.unwrap());
             }
             Entry::OneWayCall(_) => {}
             Entry::Awakeable(_) => {
-                self.append_entry(entry, waker);
+                self.append_entry(entry, waker.unwrap());
             }
             Entry::CompleteAwakeable(_) => {}
             Entry::Run(_) => {}

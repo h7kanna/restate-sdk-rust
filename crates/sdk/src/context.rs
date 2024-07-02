@@ -237,6 +237,7 @@ pub trait KeyValueStore: KeyValueStoreReadOnly {
     }
 
     fn clear_all(&self) -> impl Future<Output = ()> {
+        self.state_machine().lock().local_state_store().clear_all();
         ClearAllStateFuture::new(self.state_machine().clone())
     }
 }

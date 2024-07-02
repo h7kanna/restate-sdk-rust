@@ -51,7 +51,7 @@ impl Future for GetStateFuture {
         if let Some(result) = self.state_machine.lock().handle_user_code_message(
             self.entry_index,
             Entry::GetState(self.entry.clone()),
-            cx.waker().clone(),
+            Some(cx.waker().clone()),
         ) {
             println!("GetState Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
@@ -77,7 +77,7 @@ impl Future for GetStateKeysFuture {
         if let Some(result) = self.state_machine.lock().handle_user_code_message(
             self.entry_index,
             Entry::GetStateKeys(self.entry.clone()),
-            cx.waker().clone(),
+            Some(cx.waker().clone()),
         ) {
             println!("GetStateKeys Result ready for entry: {}", self.entry_index);
             let result = get_state_keys_entry_message::StateKeys::decode(result).unwrap();
@@ -101,17 +101,13 @@ impl Future for SetStateFuture {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(_) = self.state_machine.lock().handle_user_code_message(
+        self.state_machine.lock().handle_user_code_message(
             self.entry_index,
             Entry::SetState(self.entry.clone()),
-            cx.waker().clone(),
-        ) {
-            println!("SetState Result ready for entry: {}", self.entry_index);
-            Poll::Ready(())
-        } else {
-            println!("SetState Result pending for entry: {}", self.entry_index);
-            Poll::Pending
-        }
+            None,
+        );
+        println!("SetState Result ready for entry: {}", self.entry_index);
+        Poll::Ready(())
     }
 }
 
@@ -127,17 +123,13 @@ impl Future for ClearStateFuture {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+        self.state_machine.lock().handle_user_code_message(
             self.entry_index,
             Entry::ClearState(self.entry.clone()),
-            cx.waker().clone(),
-        ) {
-            println!("ClearState Result ready for entry: {}", self.entry_index);
-            Poll::Ready(())
-        } else {
-            println!("ClearState Result pending for entry: {}", self.entry_index);
-            Poll::Pending
-        }
+            None,
+        );
+        println!("ClearState Result ready for entry: {}", self.entry_index);
+        Poll::Ready(())
     }
 }
 
@@ -164,17 +156,11 @@ impl Future for ClearAllStateFuture {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.state_machine.lock().handle_user_code_message(
-            self.entry_index,
-            Entry::ClearAllState,
-            cx.waker().clone(),
-        ) {
-            println!("ClearAllState Result ready for entry: {}", self.entry_index);
-            Poll::Ready(())
-        } else {
-            println!("ClearAllState Result pending for entry: {}", self.entry_index);
-            Poll::Pending
-        }
+        self.state_machine
+            .lock()
+            .handle_user_code_message(self.entry_index, Entry::ClearAllState, None);
+        println!("ClearAllState Result ready for entry: {}", self.entry_index);
+        Poll::Ready(())
     }
 }
 
@@ -193,7 +179,7 @@ impl Future for AwakeableFuture {
         if let Some(result) = self.state_machine.lock().handle_user_code_message(
             self.entry_index,
             Entry::Awakeable(self.entry.clone()),
-            cx.waker().clone(),
+            Some(cx.waker().clone()),
         ) {
             println!("Run Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
@@ -219,7 +205,7 @@ impl Future for SleepFuture {
         if let Some(result) = self.state_machine.lock().handle_user_code_message(
             self.entry_index,
             Entry::Sleep(self.entry.clone()),
-            cx.waker().clone(),
+            Some(cx.waker().clone()),
         ) {
             println!("Sleep Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
@@ -245,7 +231,7 @@ impl Future for RunFuture {
         if let Some(result) = self.state_machine.lock().handle_user_code_message(
             self.entry_index,
             Entry::Run(self.entry.clone()),
-            cx.waker().clone(),
+            Some(cx.waker().clone()),
         ) {
             println!("Run Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
@@ -282,7 +268,7 @@ impl<T> Future for CallServiceFuture<T> {
         if let Some(result) = self.state_machine.lock().handle_user_code_message(
             self.entry_index,
             Entry::Call(self.invoke_entry.clone()),
-            cx.waker().clone(),
+            Some(cx.waker().clone()),
         ) {
             println!("Call Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
@@ -308,7 +294,7 @@ impl Future for GetPromiseFuture {
         if let Some(result) = self.state_machine.lock().handle_user_code_message(
             self.entry_index,
             Entry::GetPromise(self.entry.clone()),
-            cx.waker().clone(),
+            Some(cx.waker().clone()),
         ) {
             println!("GetPromise Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
@@ -334,7 +320,7 @@ impl Future for PeekPromiseFuture {
         if let Some(result) = self.state_machine.lock().handle_user_code_message(
             self.entry_index,
             Entry::PeekPromise(self.entry.clone()),
-            cx.waker().clone(),
+            Some(cx.waker().clone()),
         ) {
             println!("PeekPromise Result ready for entry: {}", self.entry_index);
             if !result.is_empty() {
@@ -364,7 +350,7 @@ impl Future for CompletePromiseFuture {
         if let Some(_) = self.state_machine.lock().handle_user_code_message(
             self.entry_index,
             Entry::CompletePromise(self.entry.clone()),
-            cx.waker().clone(),
+            Some(cx.waker().clone()),
         ) {
             println!("CompletePromise Result ready for entry: {}", self.entry_index);
             Poll::Ready(())

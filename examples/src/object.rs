@@ -9,7 +9,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 mod bundle {
     use restate::{ContextBase, KeyValueStore, KeyValueStoreReadOnly, ObjectContext, ObjectSharedContext};
     use serde::{Deserialize, Serialize};
-    use std::future;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct CounterInput {
@@ -44,7 +43,6 @@ mod bundle {
         pub async fn count(ctx: ObjectSharedContext, signal: SignalInput) -> Result<(), anyhow::Error> {
             let output = ctx.get::<CounterInput>("count".into()).await;
             println!("Printing state: {:?}", output);
-            future::pending::<()>().await;
             Ok(())
         }
     }
