@@ -34,9 +34,9 @@ mod bundle {
 
         #[restate::handler]
         pub async fn run(ctx: WorkflowContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            let signal_input: SignalInput = ctx.promise("await_user1".to_string()).awaitable().await;
+            let signal_input: SignalInput = ctx.promise("await_user1").awaitable().await;
             println!("Signal output: {:?}", signal_input);
-            let signal_input: SignalInput = ctx.promise("await_user2".to_string()).awaitable().await;
+            let signal_input: SignalInput = ctx.promise("await_user2").awaitable().await;
             println!("Signal output: {:?}", signal_input);
             Ok(ExecOutput { test: name.test })
         }

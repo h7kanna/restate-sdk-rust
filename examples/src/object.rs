@@ -35,13 +35,14 @@ mod bundle {
             ctx: ObjectContext,
             input: CounterInput,
         ) -> Result<CounterOutput, anyhow::Error> {
-            ctx.set("count".into(), input.clone()).await;
+            ctx.set("count", input.clone()).await;
             Ok(CounterOutput { value: input.value })
         }
 
         #[restate::handler]
         pub async fn count(ctx: ObjectSharedContext, signal: SignalInput) -> Result<(), anyhow::Error> {
-            let output = ctx.get::<CounterInput>("count".into()).await;
+            //let output = ctx.get::<CounterInput, _>("count").await;
+            let output: Option<CounterInput> = ctx.get("count").await;
             println!("Printing state: {:?}", output);
             Ok(())
         }

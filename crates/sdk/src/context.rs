@@ -178,25 +178,29 @@ pub trait ContextKeyed: ContextData {
 }
 
 pub trait KeyValueStoreReadOnly: ContextInstance {
-    fn get<V>(&self, name: String) -> impl Future<Output = Option<V>>
+    fn get<V, N>(&self, name: N) -> impl Future<Output = Option<V>>
     where
         for<'a> V: Serialize + Deserialize<'a>,
+        N: AsRef<str>,
     {
         let mut get_state_entry = GetStateEntry {
-            key: name.clone().into(),
+            key: name.as_ref().to_string().into(),
             value: None,
         };
         let completed = self
             .state_machine()
             .lock()
             .local_state_store()
-            .try_complete_get(&name, &mut get_state_entry);
+            .try_complete_get(name.as_ref(), &mut get_state_entry);
         let get_state = GetStateFuture::new(get_state_entry, self.state_machine().clone());
         let state_machine = self.state_machine().clone();
         async move {
             let bytes = get_state.await;
             if !completed {
-                state_machine.lock().local_state_store().add(name, bytes.clone());
+                state_machine
+                    .lock()
+                    .local_state_store()
+                    .add(name.as_ref().to_string(), bytes.clone());
             }
             let bytes = bytes.to_vec();
             let result: V = serde_json::from_slice(&bytes).unwrap();
@@ -223,16 +227,25 @@ pub trait KeyValueStoreReadOnly: ContextInstance {
 }
 
 pub trait KeyValueStore: KeyValueStoreReadOnly {
-    fn set<V>(&self, name: String, value: V) -> impl Future<Output = ()>
+    fn set<V, N>(&self, name: N, value: V) -> impl Future<Output = ()>
     where
         for<'a> V: Serialize + Deserialize<'a>,
+        N: AsRef<str>,
     {
-        let set_state_entry = self.state_machine().lock().local_state_store().set(name, value);
+        let set_state_entry = self
+            .state_machine()
+            .lock()
+            .local_state_store()
+            .set(name.as_ref().to_string(), value);
         SetStateFuture::new(set_state_entry, self.state_machine().clone())
     }
 
-    fn clear(&self, name: String) -> impl Future<Output = ()> {
-        let clear_state_entry = self.state_machine().lock().local_state_store().clear(name);
+    fn clear<N: AsRef<str>>(&self, name: N) -> impl Future<Output = ()> {
+        let clear_state_entry = self
+            .state_machine()
+            .lock()
+            .local_state_store()
+            .clear(name.as_ref().to_string());
         ClearStateFuture::new(clear_state_entry, self.state_machine().clone())
     }
 
@@ -301,8 +314,8 @@ pub trait ContextWorkflowShared<T: Send>: ContextInstance
 where
     for<'a> T: Serialize + Deserialize<'a>,
 {
-    fn promise(&self, name: String) -> impl DurablePromise<T> {
-        DurablePromiseImpl::new(name, self.state_machine().clone())
+    fn promise<N: AsRef<str>>(&self, name: N) -> impl DurablePromise<T> {
+        DurablePromiseImpl::new(name.as_ref().to_string(), self.state_machine().clone())
     }
 }
 

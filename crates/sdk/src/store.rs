@@ -26,8 +26,8 @@ impl LocalStateStore {
         }
     }
 
-    pub fn try_complete_get(&self, key: &String, message: &mut GetStateEntry) -> bool {
-        let state_entry = self.state.get(key);
+    pub fn try_complete_get<N: AsRef<str>>(&self, key: N, message: &mut GetStateEntry) -> bool {
+        let state_entry = self.state.get(key.as_ref());
         return if let Some(state_entry) = state_entry {
             if let Some(bytes) = state_entry {
                 message.value = Some(CompletionResult::Success(bytes.clone()));
