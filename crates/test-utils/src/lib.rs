@@ -220,7 +220,7 @@ impl TestRestateServer {
         let journal = self.query_journal(invocation_id.clone()).await;
         //println!("{:?}", journal);
 
-        let output_file = false;
+        let output_file = true;
         let json = serde_json::to_string(&journal).unwrap();
         if output_file {
             let mut out_file = Path::new(".").to_path_buf();
@@ -273,7 +273,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_query() {
-        let invocation_id = "inv_1hh024ttZZPP0Y3c07qGvo8cqy9BETMa4N";
+        let invocation_id = "inv_1i8DzzOL6iN13fwAavCQrxoifbeZe5E0Tv";
         let output_file = false;
         let test_server = TestRestateServer::new("".to_string()).await.unwrap();
         let journal = test_server.journal_to_protocol(invocation_id.to_owned()).await;

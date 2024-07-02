@@ -134,6 +134,7 @@ pub fn setup_connection(
     let encoder = Encoder::new(ServiceProtocolVersion::V1);
     let boxed_body = BodyExt::boxed(StreamBody::new(UnboundedReceiverStream::new(outbound_rx).map(
         move |message| {
+            println!("Sending response message: {:?}", message);
             let result = encoder.encode(message);
             Ok(Frame::data(result))
         },

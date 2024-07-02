@@ -13,6 +13,8 @@ cargo +nightly fmt
 
 ```shell
 cargo test test_handle_connection -- --nocapture
+
+cargo test test_query -- --nocapture
 ```
 
 ## Restate

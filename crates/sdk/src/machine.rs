@@ -123,6 +123,7 @@ impl StateMachine {
                 };
             }
         }
+        println!("Invocation done");
     }
 
     pub fn handle_user_code_message(
@@ -165,7 +166,25 @@ impl StateMachine {
                         .into(),
                     );
                 }
-                Entry::PeekPromise(_) => {}
+                Entry::PeekPromise(peek) => {
+                    println!(
+                        "Result does not exist for entry index {:?}, sending peek promise message",
+                        entry_index
+                    );
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::PeekPromise { is_completed: false },
+                            service_protocol::PeekPromiseEntryMessage {
+                                key: peek.key.clone().to_string(),
+                                name: "".to_string(),
+                                result: None,
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
                 Entry::CompletePromise(complete) => {
                     println!(
                         "Result does not exist for entry index {:?}, sending complete promise message",
@@ -184,7 +203,7 @@ impl StateMachine {
                     };
                     self.send(
                         PlainRawEntry::new(
-                            PlainEntryHeader::CompletePromise { is_completed: true },
+                            PlainEntryHeader::CompletePromise { is_completed: false },
                             service_protocol::CompletePromiseEntryMessage {
                                 key: complete.key.clone().to_string(),
                                 name: "".to_string(),

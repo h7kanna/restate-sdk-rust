@@ -384,15 +384,15 @@ impl Journal {
                 },
                 Entry::CompletePromise(complete) => match message.result {
                     Some(result) => match result {
-                        completion_message::Result::Empty(_) => {}
-                        completion_message::Result::Value(ref value) => {
-                            info!("{:?}", value);
+                        completion_message::Result::Empty(_) | completion_message::Result::Value(_) => {
                             println!("Journal runtime message get promise value: {:?}", result);
-                            complete.completion = EntryResult::Success(value.clone());
+                            complete.value = Some(CompleteResult::Done);
                         }
                         completion_message::Result::Failure(failure) => {
-                            complete.completion =
-                                EntryResult::Failure(failure.code.into(), failure.message.into());
+                            complete.value = Some(CompleteResult::Failure(
+                                failure.code.into(),
+                                failure.message.into(),
+                            ));
                         }
                     },
                     None => {}

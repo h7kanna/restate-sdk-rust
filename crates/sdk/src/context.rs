@@ -379,7 +379,7 @@ where
             CompletePromiseEntry {
                 key: self.name.clone().into(),
                 completion: EntryResult::Success(value.into()),
-                value: Some(CompleteResult::Done),
+                value: None,
             },
             self.state_machine.clone(),
         )
