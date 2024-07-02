@@ -3,7 +3,8 @@ use bytes::Bytes;
 use parking_lot::Mutex;
 use prost::Message;
 use restate_sdk_types::journal::{
-    AwakeableEntry, CompletePromiseEntry, Entry, GetPromiseEntry, InvokeEntry, RunEntry, SleepEntry,
+    AwakeableEntry, CompletePromiseEntry, Entry, GetPromiseEntry, InvokeEntry, PeekPromiseEntry, RunEntry,
+    SleepEntry,
 };
 use std::{
     future::Future,
@@ -168,6 +169,62 @@ impl Future for GetPromiseFuture {
             Poll::Ready(result)
         } else {
             println!("GetPromise Result pending for entry: {}", self.entry_index);
+            Poll::Pending
+        }
+    }
+}
+
+pub struct PeekPromiseFuture {
+    entry_index: u32,
+    entry: PeekPromiseEntry,
+    state_machine: Arc<Mutex<StateMachine>>,
+}
+
+future_impl!(PeekPromiseFuture, PeekPromiseEntry);
+
+impl Future for PeekPromiseFuture {
+    type Output = Option<Bytes>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+            self.entry_index,
+            Entry::PeekPromise(self.entry.clone()),
+            cx.waker().clone(),
+        ) {
+            println!("PeekPromise Result ready for entry: {}", self.entry_index);
+            if !result.is_empty() {
+                Poll::Ready(Some(result))
+            } else {
+                Poll::Ready(None)
+            }
+        } else {
+            println!("PeekPromise Result pending for entry: {}", self.entry_index);
+            Poll::Pending
+        }
+    }
+}
+
+pub struct CompletePromiseFuture {
+    entry_index: u32,
+    entry: CompletePromiseEntry,
+    state_machine: Arc<Mutex<StateMachine>>,
+}
+
+future_impl!(CompletePromiseFuture, CompletePromiseEntry);
+
+impl Future for CompletePromiseFuture {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(_) = self.state_machine.lock().handle_user_code_message(
+            self.entry_index,
+            Entry::CompletePromise(self.entry.clone()),
+            cx.waker().clone(),
+        ) {
+            println!("CompletePromise Result ready for entry: {}", self.entry_index);
+            Poll::Ready(())
+        } else {
+            println!("CompletePromise Result pending for entry: {}", self.entry_index);
             Poll::Pending
         }
     }

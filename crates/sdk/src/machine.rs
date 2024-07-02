@@ -17,7 +17,7 @@ use restate_sdk_types::{
         Entry, EntryResult,
     },
     service_protocol,
-    service_protocol::{run_entry_message, Failure},
+    service_protocol::{complete_promise_entry_message, run_entry_message, Failure},
 };
 use restate_service_protocol::message::{MessageType, ProtocolMessage};
 use serde::{Deserialize, Serialize};
@@ -146,9 +146,57 @@ impl StateMachine {
                 Entry::ClearState(_) => {}
                 Entry::GetStateKeys(_) => {}
                 Entry::ClearAllState => {}
-                Entry::GetPromise(_) => {}
+                Entry::GetPromise(get) => {
+                    println!(
+                        "Result does not exist for entry index {:?}, sending get promise message",
+                        entry_index
+                    );
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::GetPromise { is_completed: false },
+                            service_protocol::GetPromiseEntryMessage {
+                                key: get.key.clone().to_string(),
+                                name: "".to_string(),
+                                result: None,
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
                 Entry::PeekPromise(_) => {}
-                Entry::CompletePromise(_) => {}
+                Entry::CompletePromise(complete) => {
+                    println!(
+                        "Result does not exist for entry index {:?}, sending complete promise message",
+                        entry_index
+                    );
+                    let completion = match &complete.completion {
+                        EntryResult::Success(value) => {
+                            complete_promise_entry_message::Completion::CompletionValue(value.clone())
+                        }
+                        EntryResult::Failure(code, message) => {
+                            complete_promise_entry_message::Completion::CompletionFailure(Failure {
+                                code: (*code).into(),
+                                message: message.to_string(),
+                            })
+                        }
+                    };
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::CompletePromise { is_completed: true },
+                            service_protocol::CompletePromiseEntryMessage {
+                                key: complete.key.clone().to_string(),
+                                name: "".to_string(),
+                                completion: Some(completion),
+                                result: None,
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
                 Entry::Sleep(sleep) => {
                     println!(
                         "Result does not exist for entry index {:?}, sending sleep message",

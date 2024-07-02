@@ -1,7 +1,10 @@
 use crate::{
     machine::StateMachine,
     protocol::AWAKEABLE_IDENTIFIER_PREFIX,
-    syscall::{AwakeableFuture, CallServiceFuture, RunFuture, SleepFuture},
+    syscall::{
+        AwakeableFuture, CallServiceFuture, CompletePromiseFuture, GetPromiseFuture, PeekPromiseFuture,
+        RunFuture, SleepFuture,
+    },
     utils,
 };
 use anyhow::Error;
@@ -11,7 +14,8 @@ use futures_util::FutureExt;
 use parking_lot::Mutex;
 use restate_sdk_core::{RunAction, ServiceHandler};
 use restate_sdk_types::journal::{
-    AwakeableEntry, EntryResult, InvokeEntry, InvokeRequest, RunEntry, SleepEntry,
+    AwakeableEntry, CompletePromiseEntry, CompleteResult, EntryResult, GetPromiseEntry, InvokeEntry,
+    InvokeRequest, PeekPromiseEntry, RunEntry, SleepEntry,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -250,16 +254,23 @@ pub trait CombinablePromise<T: Send>: Future<Output = T> + Send {
     fn or_timeout(&self, millis: u64) -> impl Future<Output = T> + Send;
 }
 
-pub trait DurablePromise<T: Send>: Future<Output = T> + Send {
+pub trait DurablePromise<T: Send>
+where
+    for<'a> T: Serialize + Deserialize<'a>,
+{
     fn peek(&self) -> impl Future<Output = Option<T>> + Send;
-    fn resolve(&self, value: Option<T>) -> impl Future<Output = ()> + Send;
+    fn resolve(&self, value: T) -> impl Future<Output = ()> + Send;
     fn reject(&self, message: String) -> impl Future<Output = ()> + Send;
     fn get(&self) -> impl CombinablePromise<T>;
+    fn awaitable(&self) -> impl Future<Output = T> + Send;
 }
 
-pub trait ContextWorkflowShared<T: Send>: ContextInstance {
+pub trait ContextWorkflowShared<T: Send>: ContextInstance
+where
+    for<'a> T: Serialize + Deserialize<'a>,
+{
     fn promise(&self, name: String) -> impl DurablePromise<T> {
-        DurablePromiseImpl::new(self.state_machine().clone())
+        DurablePromiseImpl::new(name, self.state_machine().clone())
     }
 }
 
@@ -271,7 +282,7 @@ pub struct WorkflowSharedContext {
 
 context_data_impl!(WorkflowSharedContext);
 
-impl<T: Send> ContextWorkflowShared<T> for WorkflowSharedContext {}
+impl<T: Send> ContextWorkflowShared<T> for WorkflowSharedContext where for<'a> T: Serialize + Deserialize<'a> {}
 
 #[derive(Clone)]
 pub struct WorkflowContext {
@@ -289,7 +300,7 @@ impl KeyValueStoreReadOnly for WorkflowContext {}
 
 impl KeyValueStore for WorkflowContext {}
 
-impl<T: Send> ContextWorkflowShared<T> for WorkflowContext {}
+impl<T: Send> ContextWorkflowShared<T> for WorkflowContext where for<'a> T: Serialize + Deserialize<'a> {}
 
 pub struct CombinablePromiseImpl<T> {
     entry_index: u32,
@@ -323,45 +334,87 @@ impl<T: Send> CombinablePromise<T> for CombinablePromiseImpl<T> {
 }
 
 pub struct DurablePromiseImpl<T> {
-    entry_index: u32,
+    name: String,
     state_machine: Arc<Mutex<StateMachine>>,
     _ret: PhantomData<T>,
 }
 
-impl<T: Send> DurablePromiseImpl<T> {
-    pub fn new(state_machine: Arc<Mutex<StateMachine>>) -> Self {
-        let entry_index = state_machine.lock().get_next_user_code_journal_index();
+impl<T> DurablePromiseImpl<T> {
+    pub fn new(name: String, state_machine: Arc<Mutex<StateMachine>>) -> Self {
         Self {
-            entry_index,
+            name,
             state_machine,
             _ret: PhantomData,
         }
     }
 }
 
-impl<T: Send> Future for DurablePromiseImpl<T> {
-    type Output = T;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        Poll::<T>::Pending
-    }
-}
-
-impl<T: Send> DurablePromise<T> for DurablePromiseImpl<T> {
+impl<T: Send> DurablePromise<T> for DurablePromiseImpl<T>
+where
+    for<'a> T: Serialize + Deserialize<'a>,
+{
     fn peek(&self) -> impl Future<Output = Option<T>> {
-        async { Some(future::pending::<T>().await) }
+        let peek_promise = PeekPromiseFuture::new(
+            PeekPromiseEntry {
+                key: self.name.clone().into(),
+                value: None,
+            },
+            self.state_machine.clone(),
+        );
+
+        async move {
+            let bytes = peek_promise.await;
+            bytes.map(|bytes| {
+                // If the system call is completed, deserialize the result and return
+                let bytes = bytes.to_vec();
+                let result: T = serde_json::from_slice(&bytes).unwrap();
+                result
+            })
+        }
     }
 
-    fn resolve(&self, value: Option<T>) -> impl Future<Output = ()> {
-        async { future::pending::<()>().await }
+    fn resolve(&self, value: T) -> impl Future<Output = ()> {
+        let value = serde_json::to_string(&value).unwrap();
+        CompletePromiseFuture::new(
+            CompletePromiseEntry {
+                key: self.name.clone().into(),
+                completion: EntryResult::Success(value.into()),
+                value: Some(CompleteResult::Done),
+            },
+            self.state_machine.clone(),
+        )
     }
 
     fn reject(&self, message: String) -> impl Future<Output = ()> {
-        async { future::pending::<()>().await }
+        CompletePromiseFuture::new(
+            CompletePromiseEntry {
+                key: self.name.clone().into(),
+                completion: EntryResult::Failure(0u32.into(), message.into()),
+                value: None,
+            },
+            self.state_machine.clone(),
+        )
     }
 
     fn get(&self) -> impl CombinablePromise<T> {
         CombinablePromiseImpl::new(self.state_machine.clone())
+    }
+
+    fn awaitable(&self) -> impl Future<Output = T> {
+        let get_promise = GetPromiseFuture::new(
+            GetPromiseEntry {
+                key: self.name.clone().into(),
+                value: None,
+            },
+            self.state_machine.clone(),
+        );
+        async move {
+            let bytes = get_promise.await;
+            // If the system call is completed, deserialize the result and return
+            let bytes = bytes.to_vec();
+            let result: T = serde_json::from_slice(&bytes).unwrap();
+            result
+        }
     }
 }
 

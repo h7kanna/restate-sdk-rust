@@ -11,7 +11,6 @@ mod bundle {
         ContextBase, ContextWorkflowShared, DurablePromise, WorkflowContext, WorkflowSharedContext,
     };
     use serde::{Deserialize, Serialize};
-    use std::{future, time::Duration};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct ExecInput {
@@ -35,17 +34,7 @@ mod bundle {
 
         #[restate::handler]
         pub async fn run(ctx: WorkflowContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            let (id, result) = ctx.awakeable::<SignalInput>();
-            ctx.run(move || {
-                let id = id.clone();
-                async move {
-                    println!("Service: service: saving signal: {}", id);
-                    Ok(())
-                }
-            })
-            .await
-            .unwrap();
-            let signal_input = result.await.unwrap();
+            let signal_input: SignalInput = ctx.promise("await_user".to_string()).awaitable().await;
             println!("Signal output: {:?}", signal_input);
             Ok(ExecOutput { test: name.test })
         }
@@ -53,7 +42,6 @@ mod bundle {
         #[restate::handler]
         pub async fn signal(ctx: WorkflowSharedContext, name: SignalInput) -> Result<(), anyhow::Error> {
             ctx.promise("await_user".to_string()).resolve(Some(name)).await;
-            future::pending::<()>().await;
             Ok(())
         }
     }
