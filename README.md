@@ -38,7 +38,9 @@ curl -v localhost:8080/Service/service -H 'content-type: application/json' -H 'i
 
 curl -v localhost:8080/ObjectService/workflow1/increment -H 'content-type: application/json' -d '{"test": "test"}'
 
-curl -v localhost:8080/ObjectService/workflow1/count -H 'content-type: application/json' -d '{"test": "test"}'
+curl -v localhost:8080/ObjectService/counter/increment -H 'content-type: application/json' -d '{"value": "100"}'
+
+curl -v localhost:8080/ObjectService/counter/count -H 'content-type: application/json' -d '{"value": "100"}'
 
 curl -v localhost:8080/WorkflowService/workflow1/run -H 'content-type: application/json' -d '{"test": "test"}'
 

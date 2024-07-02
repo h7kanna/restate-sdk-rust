@@ -273,7 +273,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_query() {
-        let invocation_id = "inv_1i8DzzOL6iN13fwAavCQrxoifbeZe5E0Tv";
+        let invocation_id = "inv_143xqnNK7eQF3yhEo42fkRpPjKHOtPX1dv";
         let output_file = false;
         let test_server = TestRestateServer::new("".to_string()).await.unwrap();
         let journal = test_server.journal_to_protocol(invocation_id.to_owned()).await;

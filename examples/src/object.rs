@@ -7,23 +7,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{ContextBase, ObjectContext, ObjectSharedContext};
+    use restate::{ContextBase, KeyValueStore, KeyValueStoreReadOnly, ObjectContext, ObjectSharedContext};
     use serde::{Deserialize, Serialize};
-    use std::{future, time::Duration};
+    use std::future;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct ExecInput {
-        test: String,
+    pub struct CounterInput {
+        value: String,
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct SignalInput {
-        test: String,
+        value: String,
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct ExecOutput {
-        test: String,
+    pub struct CounterOutput {
+        value: String,
     }
 
     #[restate::object]
@@ -32,24 +32,18 @@ mod bundle {
         const TYPE: &'static str = "VIRTUAL_OBJECT";
 
         #[restate::handler]
-        pub async fn increment(ctx: ObjectContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
-            let (id, result) = ctx.awakeable::<SignalInput>();
-            ctx.run(move || {
-                let id = id.clone();
-                async move {
-                    println!("Service: service: saving signal: {}", id);
-                    Ok(())
-                }
-            })
-            .await
-            .unwrap();
-            let signal_input = result.await.unwrap();
-            println!("Signal output: {:?}", signal_input);
-            Ok(ExecOutput { test: name.test })
+        pub async fn increment(
+            ctx: ObjectContext,
+            input: CounterInput,
+        ) -> Result<CounterOutput, anyhow::Error> {
+            ctx.set("count".into(), input.clone()).await;
+            Ok(CounterOutput { value: input.value })
         }
 
         #[restate::handler]
-        pub async fn count(ctx: ObjectSharedContext, name: SignalInput) -> Result<(), anyhow::Error> {
+        pub async fn count(ctx: ObjectSharedContext, signal: SignalInput) -> Result<(), anyhow::Error> {
+            let output = ctx.get::<CounterInput>("count".into()).await;
+            println!("Printing state: {:?}", output);
             future::pending::<()>().await;
             Ok(())
         }

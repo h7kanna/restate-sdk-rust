@@ -4,7 +4,7 @@ use crate::{
     invocation::Invocation,
     journal::Journal,
     logger::Logger,
-    store::LocalStore,
+    store::LocalStateStore,
 };
 use bytes::Bytes;
 use parking_lot::{Mutex, MutexGuard};
@@ -14,10 +14,13 @@ use restate_sdk_types::{
     endpoint_manifest::ProtocolMode,
     journal::{
         raw::{PlainEntryHeader, PlainRawEntry},
-        Entry, EntryResult,
+        Entry, EntryResult, GetStateKeysResult,
     },
     service_protocol,
-    service_protocol::{complete_promise_entry_message, run_entry_message, Failure},
+    service_protocol::{
+        complete_awakeable_entry_message, complete_promise_entry_message, get_state_keys_entry_message,
+        run_entry_message, Failure,
+    },
 };
 use restate_service_protocol::message::{MessageType, ProtocolMessage};
 use serde::{Deserialize, Serialize};
@@ -31,7 +34,7 @@ pub(crate) struct StateMachine {
     journal: Journal,
     machine_closed: bool,
     input_channel_closed: bool,
-    local_state_store: Option<LocalStore>,
+    local_state_store: LocalStateStore,
     logger: Logger,
     suspension_tx: UnboundedSender<String>,
     connection: Option<Box<dyn MessageSender>>,
@@ -44,16 +47,17 @@ impl StateMachine {
     pub fn new(
         abort: Option<Box<dyn MessageSender>>,
         connection: Option<Box<dyn MessageSender>>,
-        invocation: Invocation,
+        mut invocation: Invocation,
     ) -> (Self, UnboundedReceiver<String>) {
         let input = invocation.invocation_value.clone();
+        let store = invocation.local_state_store.take();
         let (suspension_tx, suspension_rx) = unbounded_channel();
         (
             Self {
                 journal: Journal::new(invocation),
                 machine_closed: false,
                 input_channel_closed: false,
-                local_state_store: None,
+                local_state_store: store.unwrap(),
                 logger: Logger::new(),
                 suspension_tx,
                 connection,
@@ -63,6 +67,10 @@ impl StateMachine {
             },
             suspension_rx,
         )
+    }
+
+    pub fn local_state_store(&mut self) -> &mut LocalStateStore {
+        &mut self.local_state_store
     }
 
     pub async fn invoke<C, F, I, R>(
@@ -142,11 +150,112 @@ impl StateMachine {
             match &message {
                 Entry::Input(_) => {}
                 Entry::Output(_) => {}
-                Entry::GetState(_) => {}
-                Entry::SetState(_) => {}
-                Entry::ClearState(_) => {}
-                Entry::GetStateKeys(_) => {}
-                Entry::ClearAllState => {}
+                Entry::GetState(get_state) => {
+                    println!(
+                        "Result does not exist for entry index {:?}, sending get state message",
+                        entry_index
+                    );
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::GetState { is_completed: false },
+                            service_protocol::GetStateEntryMessage {
+                                key: get_state.key.clone(),
+                                name: "".to_string(),
+                                result: None,
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
+                Entry::SetState(set_state) => {
+                    println!(
+                        "Result does not exist for entry index {:?}, sending set state message",
+                        entry_index
+                    );
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::SetState,
+                            service_protocol::SetStateEntryMessage {
+                                key: set_state.key.clone(),
+                                name: "".to_string(),
+                                value: set_state.value.clone(),
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
+                Entry::ClearState(clear_state) => {
+                    println!(
+                        "Result does not exist for entry index {:?}, sending clear state message",
+                        entry_index
+                    );
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::ClearState,
+                            service_protocol::ClearStateEntryMessage {
+                                key: clear_state.key.clone(),
+                                name: "".to_string(),
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
+                Entry::GetStateKeys(get_state_keys) => {
+                    println!(
+                        "Result does not exist for entry index {:?}, sending get state keys message",
+                        entry_index
+                    );
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::GetStateKeys { is_completed: false },
+                            service_protocol::GetStateKeysEntryMessage {
+                                name: "".to_string(),
+                                result: match get_state_keys.value.as_ref() {
+                                    Some(result) => match result {
+                                        GetStateKeysResult::Result(keys) => {
+                                            Some(get_state_keys_entry_message::Result::Value(
+                                                get_state_keys_entry_message::StateKeys {
+                                                    keys: keys.clone(),
+                                                },
+                                            ))
+                                        }
+                                        GetStateKeysResult::Failure(code, message) => {
+                                            Some(get_state_keys_entry_message::Result::Failure(Failure {
+                                                code: (*code).into(),
+                                                message: message.clone().to_string(),
+                                            }))
+                                        }
+                                    },
+                                    None => None,
+                                },
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
+                Entry::ClearAllState => {
+                    println!(
+                        "Result does not exist for entry index {:?}, sending clear all state message",
+                        entry_index
+                    );
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::ClearState,
+                            service_protocol::ClearAllStateEntryMessage { name: "".to_string() }
+                                .encode_to_vec()
+                                .into(),
+                        )
+                        .into(),
+                    );
+                }
                 Entry::GetPromise(get) => {
                     println!(
                         "Result does not exist for entry index {:?}, sending get promise message",
@@ -278,8 +387,55 @@ impl StateMachine {
                         .into(),
                     );
                 }
-                Entry::Awakeable(_) => {}
-                Entry::CompleteAwakeable(_) => {}
+                Entry::Awakeable(awakeable) => {
+                    println!(
+                        "Result does not exist for entry index {:?}, sending awakeable message",
+                        entry_index
+                    );
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::Awakeable { is_completed: false },
+                            service_protocol::AwakeableEntryMessage {
+                                name: "".to_string(),
+                                result: None,
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
+                Entry::CompleteAwakeable(complete_awakeable) => {
+                    println!(
+                        "Result does not exist for entry index {:?}, sending complete awakeable message",
+                        entry_index
+                    );
+                    self.send(
+                        PlainRawEntry::new(
+                            PlainEntryHeader::CompleteAwakeable {
+                                enrichment_result: (),
+                            },
+                            service_protocol::CompleteAwakeableEntryMessage {
+                                id: complete_awakeable.id.clone().to_string(),
+                                name: "".to_string(),
+                                result: match &complete_awakeable.result {
+                                    EntryResult::Success(value) => {
+                                        Some(complete_awakeable_entry_message::Result::Value(value.clone()))
+                                    }
+                                    EntryResult::Failure(code, message) => {
+                                        Some(complete_awakeable_entry_message::Result::Failure(Failure {
+                                            code: (*code).into(),
+                                            message: message.clone().to_string(),
+                                        }))
+                                    }
+                                },
+                            }
+                            .encode_to_vec()
+                            .into(),
+                        )
+                        .into(),
+                    );
+                }
                 Entry::Run(run) => {
                     let result = match &run.result {
                         EntryResult::Success(value) => run_entry_message::Result::Value(value.clone()),

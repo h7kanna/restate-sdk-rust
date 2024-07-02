@@ -2,8 +2,9 @@ use crate::{
     machine::StateMachine,
     protocol::AWAKEABLE_IDENTIFIER_PREFIX,
     syscall::{
-        AwakeableFuture, CallServiceFuture, CompletePromiseFuture, GetPromiseFuture, PeekPromiseFuture,
-        RunFuture, SleepFuture,
+        AwakeableFuture, CallServiceFuture, ClearAllStateFuture, ClearStateFuture, CompletePromiseFuture,
+        GetPromiseFuture, GetStateFuture, GetStateKeysFuture, PeekPromiseFuture, RunFuture, SetStateFuture,
+        SleepFuture,
     },
     utils,
 };
@@ -14,8 +15,8 @@ use futures_util::FutureExt;
 use parking_lot::Mutex;
 use restate_sdk_core::{RunAction, ServiceHandler};
 use restate_sdk_types::journal::{
-    AwakeableEntry, CompletePromiseEntry, CompleteResult, EntryResult, GetPromiseEntry, InvokeEntry,
-    InvokeRequest, PeekPromiseEntry, RunEntry, SleepEntry,
+    AwakeableEntry, CompletePromiseEntry, EntryResult, GetPromiseEntry, GetStateEntry, GetStateKeysEntry,
+    InvokeEntry, InvokeRequest, PeekPromiseEntry, RunEntry, SleepEntry,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -176,13 +177,27 @@ pub trait ContextKeyed: ContextData {
     }
 }
 
-pub trait KeyValueStoreReadOnly {
+pub trait KeyValueStoreReadOnly: ContextInstance {
     fn get<V>(&self, name: String) -> impl Future<Output = Option<V>>
     where
         for<'a> V: Serialize + Deserialize<'a>,
     {
+        let mut get_state_entry = GetStateEntry {
+            key: name.clone().into(),
+            value: None,
+        };
+        let completed = self
+            .state_machine()
+            .lock()
+            .local_state_store()
+            .try_complete_get(&name, &mut get_state_entry);
+        let get_state = GetStateFuture::new(get_state_entry, self.state_machine().clone());
+        let state_machine = self.state_machine().clone();
         async move {
-            let bytes = Bytes::new();
+            let bytes = get_state.await;
+            if !completed {
+                state_machine.lock().local_state_store().add(name, bytes.clone());
+            }
             let bytes = bytes.to_vec();
             let result: V = serde_json::from_slice(&bytes).unwrap();
             Some(result)
@@ -193,21 +208,37 @@ pub trait KeyValueStoreReadOnly {
     where
         for<'a> V: Serialize + Deserialize<'a>,
     {
+        let mut get_state_keys_entry = GetStateKeysEntry { value: None };
+        let completed = self
+            .state_machine()
+            .lock()
+            .local_state_store()
+            .try_complete_get_keys(&mut get_state_keys_entry);
+        let get_state_keys = GetStateKeysFuture::new(get_state_keys_entry, self.state_machine().clone());
         async move {
-            let bytes = Bytes::new();
-            let bytes = bytes.to_vec();
-            let result: V = serde_json::from_slice(&bytes).unwrap();
-            vec![result]
+            let bytes = get_state_keys.await;
+            bytes.iter().map(|v| serde_json::from_slice(v).unwrap()).collect()
         }
     }
 }
 
 pub trait KeyValueStore: KeyValueStoreReadOnly {
-    fn set<V>(&self, name: String, value: V) {}
+    fn set<V>(&self, name: String, value: V) -> impl Future<Output = ()>
+    where
+        for<'a> V: Serialize + Deserialize<'a>,
+    {
+        let set_state_entry = self.state_machine().lock().local_state_store().set(name, value);
+        SetStateFuture::new(set_state_entry, self.state_machine().clone())
+    }
 
-    fn clear(&self, name: String) {}
+    fn clear(&self, name: String) -> impl Future<Output = ()> {
+        let clear_state_entry = self.state_machine().lock().local_state_store().clear(name);
+        ClearStateFuture::new(clear_state_entry, self.state_machine().clone())
+    }
 
-    fn clear_all(&self) {}
+    fn clear_all(&self) -> impl Future<Output = ()> {
+        ClearAllStateFuture::new(self.state_machine().clone())
+    }
 }
 
 #[derive(Clone)]

@@ -2,11 +2,15 @@ use crate::invocation::Invocation;
 use bytes::Bytes;
 use dashmap::DashMap;
 use futures_util::task::waker;
+use prost::Message;
 use restate_sdk_types::{
-    journal::{CompleteResult, CompletionResult, Entry, EntryResult, InputEntry, RunEntry, SleepResult},
+    journal::{
+        CompleteResult, CompletionResult, Entry, EntryResult, GetStateKeysResult, InputEntry, RunEntry,
+        SleepResult,
+    },
     service_protocol::{
         awakeable_entry_message, call_entry_message, complete_promise_entry_message, completion_message,
-        CompletionMessage, EntryAckMessage, InputEntryMessage,
+        get_state_keys_entry_message, CompletionMessage, EntryAckMessage, InputEntryMessage,
     },
 };
 use std::{cmp::PartialEq, task::Waker};
@@ -138,11 +142,26 @@ impl Journal {
                 match &pending.entry {
                     Entry::Input(_) => {}
                     Entry::Output(_) => {}
-                    Entry::GetState(_) => {}
-                    Entry::SetState(_) => {}
-                    Entry::ClearState(_) => {}
-                    Entry::GetStateKeys(_) => {}
-                    Entry::ClearAllState => {}
+                    Entry::GetState(get_state) => {
+                        if let Some(result) = get_state.value.as_ref() {
+                            return match result {
+                                CompletionResult::Empty => Some(Bytes::new()),
+                                CompletionResult::Success(bytes) => Some(bytes.clone()),
+                                CompletionResult::Failure(_, _) => None,
+                            };
+                        }
+                    }
+                    Entry::SetState(_) => return Some(Bytes::new()),
+                    Entry::ClearState(_) => return Some(Bytes::new()),
+                    Entry::GetStateKeys(get_state_keys) => {
+                        if let Some(result) = get_state_keys.value.as_ref() {
+                            return match result {
+                                GetStateKeysResult::Result(value) => Some(Bytes::new()),
+                                GetStateKeysResult::Failure(_, _) => Some(Bytes::new()),
+                            };
+                        }
+                    }
+                    Entry::ClearAllState => return Some(Bytes::new()),
                     Entry::GetPromise(get) => {
                         if let Some(result) = get.value.as_ref() {
                             match result {
@@ -234,21 +253,36 @@ impl Journal {
                     EntryResult::Failure(_, _) => {}
                 }
             }
-            Entry::GetState(_) => {}
-            Entry::SetState(_) => {}
-            Entry::ClearState(_) => {}
-            Entry::GetStateKeys(_) => {}
-            Entry::ClearAllState => {}
-            Entry::GetPromise(get) => {
-                if let Some(result) = get.value {
+            Entry::GetState(get_state) => {
+                if let Some(result) = get_state.value {
+                    return match result {
+                        CompletionResult::Empty => Some(Bytes::new()),
+                        CompletionResult::Success(bytes) => Some(bytes),
+                        CompletionResult::Failure(_, _) => None,
+                    };
+                }
+            }
+            Entry::SetState(_) => return Some(Bytes::new()),
+            Entry::ClearState(_) => return Some(Bytes::new()),
+            Entry::GetStateKeys(get_state_keys) => {
+                if let Some(result) = get_state_keys.value {
+                    return match result {
+                        GetStateKeysResult::Result(value) => Some(Bytes::new()),
+                        GetStateKeysResult::Failure(_, _) => Some(Bytes::new()),
+                    };
+                }
+            }
+            Entry::ClearAllState => return Some(Bytes::new()),
+            Entry::GetPromise(get_promise) => {
+                if let Some(result) = get_promise.value {
                     match result {
                         EntryResult::Success(value) => return Some(value),
                         EntryResult::Failure(code, value) => {}
                     }
                 }
             }
-            Entry::PeekPromise(peek) => {
-                if let Some(result) = peek.value {
+            Entry::PeekPromise(peek_promise) => {
+                if let Some(result) = peek_promise.value {
                     match result {
                         CompletionResult::Empty => {
                             return Some(Bytes::new());
@@ -260,7 +294,7 @@ impl Journal {
                     }
                 }
             }
-            Entry::CompletePromise(complete) => match complete.completion {
+            Entry::CompletePromise(complete_promise) => match complete_promise.completion {
                 EntryResult::Success(value) => return Some(value),
                 EntryResult::Failure(code, value) => {}
             },
@@ -309,11 +343,21 @@ impl Journal {
             Entry::Output(_) => {
                 self.handle_output_message(entry_index);
             }
-            Entry::GetState(_) => {}
-            Entry::SetState(_) => {}
-            Entry::ClearState(_) => {}
-            Entry::GetStateKeys(_) => {}
-            Entry::ClearAllState => {}
+            Entry::GetState(_) => {
+                self.append_entry(entry, waker);
+            }
+            Entry::SetState(_) => {
+                self.append_entry(entry, waker);
+            }
+            Entry::ClearState(_) => {
+                self.append_entry(entry, waker);
+            }
+            Entry::GetStateKeys(_) => {
+                self.append_entry(entry, waker);
+            }
+            Entry::ClearAllState => {
+                self.append_entry(entry, waker);
+            }
             Entry::GetPromise(_) => {
                 self.append_entry(entry, waker);
             }
@@ -346,35 +390,18 @@ impl Journal {
         if let Some(mut journal_entry) = journal_entry {
             println!("Journal runtime message entry: {:?}", journal_entry);
             match &mut journal_entry.entry {
-                Entry::GetState(_) => {}
-                Entry::GetStateKeys(_) => {}
-                Entry::GetPromise(get) => match message.result {
-                    Some(result) => match result {
-                        completion_message::Result::Empty(_) => {}
-                        completion_message::Result::Value(ref value) => {
-                            info!("{:?}", value);
-                            println!("Journal runtime message get promise value: {:?}", result);
-                            get.value = Some(EntryResult::Success(value.clone()));
-                        }
-                        completion_message::Result::Failure(failure) => {
-                            get.value =
-                                Some(EntryResult::Failure(failure.code.into(), failure.message.into()));
-                        }
-                    },
-                    None => {}
-                },
-                Entry::PeekPromise(peek) => match message.result {
+                Entry::GetState(get_state) => match message.result {
                     Some(result) => match result {
                         completion_message::Result::Empty(_) => {
-                            peek.value = Some(CompletionResult::Empty);
+                            get_state.value = Some(CompletionResult::Empty)
                         }
                         completion_message::Result::Value(ref value) => {
                             info!("{:?}", value);
-                            println!("Journal runtime message get promise value: {:?}", result);
-                            peek.value = Some(CompletionResult::Success(value.clone()));
+                            println!("Journal runtime message get state value: {:?}", result);
+                            get_state.value = Some(CompletionResult::Success(value.clone()));
                         }
                         completion_message::Result::Failure(failure) => {
-                            peek.value = Some(CompletionResult::Failure(
+                            get_state.value = Some(CompletionResult::Failure(
                                 failure.code.into(),
                                 failure.message.into(),
                             ));
@@ -382,14 +409,66 @@ impl Journal {
                     },
                     None => {}
                 },
-                Entry::CompletePromise(complete) => match message.result {
+                Entry::GetStateKeys(get_state_keys) => match message.result {
+                    Some(result) => match result {
+                        completion_message::Result::Empty(_) => {
+                            get_state_keys.value = Some(GetStateKeysResult::Result(vec![]));
+                        }
+                        completion_message::Result::Value(value) => {
+                            let result = get_state_keys_entry_message::StateKeys::decode(value).unwrap();
+                            get_state_keys.value = Some(GetStateKeysResult::Result(result.keys));
+                        }
+                        completion_message::Result::Failure(failure) => {
+                            get_state_keys.value = Some(GetStateKeysResult::Failure(
+                                failure.code.into(),
+                                failure.message.into(),
+                            ));
+                        }
+                    },
+                    None => {}
+                },
+                Entry::GetPromise(get_promise) => match message.result {
+                    Some(result) => match result {
+                        completion_message::Result::Empty(_) => {}
+                        completion_message::Result::Value(ref value) => {
+                            info!("{:?}", value);
+                            println!("Journal runtime message get promise value: {:?}", result);
+                            get_promise.value = Some(EntryResult::Success(value.clone()));
+                        }
+                        completion_message::Result::Failure(failure) => {
+                            get_promise.value =
+                                Some(EntryResult::Failure(failure.code.into(), failure.message.into()));
+                        }
+                    },
+                    None => {}
+                },
+                Entry::PeekPromise(peek_promise) => match message.result {
+                    Some(result) => match result {
+                        completion_message::Result::Empty(_) => {
+                            peek_promise.value = Some(CompletionResult::Empty);
+                        }
+                        completion_message::Result::Value(ref value) => {
+                            info!("{:?}", value);
+                            println!("Journal runtime message get promise value: {:?}", result);
+                            peek_promise.value = Some(CompletionResult::Success(value.clone()));
+                        }
+                        completion_message::Result::Failure(failure) => {
+                            peek_promise.value = Some(CompletionResult::Failure(
+                                failure.code.into(),
+                                failure.message.into(),
+                            ));
+                        }
+                    },
+                    None => {}
+                },
+                Entry::CompletePromise(complete_promise) => match message.result {
                     Some(result) => match result {
                         completion_message::Result::Empty(_) | completion_message::Result::Value(_) => {
                             println!("Journal runtime message get promise value: {:?}", result);
-                            complete.value = Some(CompleteResult::Done);
+                            complete_promise.value = Some(CompleteResult::Done);
                         }
                         completion_message::Result::Failure(failure) => {
-                            complete.value = Some(CompleteResult::Failure(
+                            complete_promise.value = Some(CompleteResult::Failure(
                                 failure.code.into(),
                                 failure.message.into(),
                             ));

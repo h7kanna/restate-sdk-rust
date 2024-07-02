@@ -2,9 +2,12 @@ use crate::machine::StateMachine;
 use bytes::Bytes;
 use parking_lot::Mutex;
 use prost::Message;
-use restate_sdk_types::journal::{
-    AwakeableEntry, CompletePromiseEntry, Entry, GetPromiseEntry, InvokeEntry, PeekPromiseEntry, RunEntry,
-    SleepEntry,
+use restate_sdk_types::{
+    journal::{
+        AwakeableEntry, ClearStateEntry, CompletePromiseEntry, Entry, GetPromiseEntry, GetStateEntry,
+        GetStateKeysEntry, InvokeEntry, PeekPromiseEntry, RunEntry, SetStateEntry, SleepEntry,
+    },
+    service_protocol::get_state_keys_entry_message,
 };
 use std::{
     future::Future,
@@ -31,6 +34,148 @@ macro_rules! future_impl {
             }
         }
     };
+}
+
+pub struct GetStateFuture {
+    entry_index: u32,
+    entry: GetStateEntry,
+    state_machine: Arc<Mutex<StateMachine>>,
+}
+
+future_impl!(GetStateFuture, GetStateEntry);
+
+impl Future for GetStateFuture {
+    type Output = Bytes;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+            self.entry_index,
+            Entry::GetState(self.entry.clone()),
+            cx.waker().clone(),
+        ) {
+            println!("GetState Result ready for entry: {}", self.entry_index);
+            Poll::Ready(result)
+        } else {
+            println!("GetState Result pending for entry: {}", self.entry_index);
+            Poll::Pending
+        }
+    }
+}
+
+pub struct GetStateKeysFuture {
+    entry_index: u32,
+    entry: GetStateKeysEntry,
+    state_machine: Arc<Mutex<StateMachine>>,
+}
+
+future_impl!(GetStateKeysFuture, GetStateKeysEntry);
+
+impl Future for GetStateKeysFuture {
+    type Output = Vec<Bytes>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+            self.entry_index,
+            Entry::GetStateKeys(self.entry.clone()),
+            cx.waker().clone(),
+        ) {
+            println!("GetStateKeys Result ready for entry: {}", self.entry_index);
+            let result = get_state_keys_entry_message::StateKeys::decode(result).unwrap();
+            Poll::Ready(result.keys)
+        } else {
+            println!("GetStateKeys Result pending for entry: {}", self.entry_index);
+            Poll::Pending
+        }
+    }
+}
+
+pub struct SetStateFuture {
+    entry_index: u32,
+    entry: SetStateEntry,
+    state_machine: Arc<Mutex<StateMachine>>,
+}
+
+future_impl!(SetStateFuture, SetStateEntry);
+
+impl Future for SetStateFuture {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(_) = self.state_machine.lock().handle_user_code_message(
+            self.entry_index,
+            Entry::SetState(self.entry.clone()),
+            cx.waker().clone(),
+        ) {
+            println!("SetState Result ready for entry: {}", self.entry_index);
+            Poll::Ready(())
+        } else {
+            println!("SetState Result pending for entry: {}", self.entry_index);
+            Poll::Pending
+        }
+    }
+}
+
+pub struct ClearStateFuture {
+    entry_index: u32,
+    entry: ClearStateEntry,
+    state_machine: Arc<Mutex<StateMachine>>,
+}
+
+future_impl!(ClearStateFuture, ClearStateEntry);
+
+impl Future for ClearStateFuture {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+            self.entry_index,
+            Entry::ClearState(self.entry.clone()),
+            cx.waker().clone(),
+        ) {
+            println!("ClearState Result ready for entry: {}", self.entry_index);
+            Poll::Ready(())
+        } else {
+            println!("ClearState Result pending for entry: {}", self.entry_index);
+            Poll::Pending
+        }
+    }
+}
+
+pub struct ClearAllStateFuture {
+    entry_index: u32,
+    state_machine: Arc<Mutex<StateMachine>>,
+}
+
+impl ClearAllStateFuture {
+    pub fn new(state_machine: Arc<Mutex<StateMachine>>) -> Self {
+        let entry_index = state_machine.lock().get_next_user_code_journal_index();
+        Self {
+            entry_index,
+            state_machine,
+        }
+    }
+
+    pub fn entry(&self) -> u32 {
+        self.entry_index
+    }
+}
+
+impl Future for ClearAllStateFuture {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+            self.entry_index,
+            Entry::ClearAllState,
+            cx.waker().clone(),
+        ) {
+            println!("ClearAllState Result ready for entry: {}", self.entry_index);
+            Poll::Ready(())
+        } else {
+            println!("ClearAllState Result pending for entry: {}", self.entry_index);
+            Poll::Pending
+        }
+    }
 }
 
 pub struct AwakeableFuture {

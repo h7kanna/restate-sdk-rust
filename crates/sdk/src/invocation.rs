@@ -1,4 +1,4 @@
-use crate::{connection::RestateStreamConsumer, store::LocalStore};
+use crate::{connection::RestateStreamConsumer, store::LocalStateStore};
 use bytes::Bytes;
 use dashmap::DashMap;
 use restate_sdk_types::{
@@ -26,7 +26,7 @@ pub(crate) struct Invocation {
     pub replay_entries: DashMap<u32, Entry>,
     pub invocation_value: Option<Bytes>,
     pub invocation_headers: Option<HashMap<String, String>>,
-    pub local_state_store: Option<LocalStore>,
+    pub local_state_store: Option<LocalStateStore>,
     pub user_key: Option<String>,
 }
 
@@ -39,7 +39,7 @@ pub(crate) struct InvocationBuilder {
     known_entries: u32,
     invocation_value: Option<Bytes>,
     invocation_headers: Option<HashMap<String, String>>,
-    local_state_store: Option<LocalStore>,
+    local_state_store: Option<LocalStateStore>,
     user_key: Option<String>,
 }
 
@@ -80,7 +80,7 @@ impl InvocationBuilder {
         self.id = Some(message.id);
         self.debug_id = Some(message.debug_id);
         self.user_key = Some(message.key);
-        self.local_state_store = Some(LocalStore::new(message.partial_state, message.state_map))
+        self.local_state_store = Some(LocalStateStore::new(message.partial_state, message.state_map))
     }
 
     fn handle_input_message(&mut self, message: InputEntry) {
