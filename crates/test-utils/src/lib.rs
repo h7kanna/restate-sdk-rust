@@ -86,6 +86,8 @@ struct JournalRowResult {
     raw: Option<Vec<u8>>,
 }
 
+pub type History = VecDeque<(MessageType, ProtocolMessage)>;
+
 pub struct TestRestateServer {
     raw_client: Client,
     request_builder: RequestBuilder,
@@ -213,10 +215,7 @@ impl TestRestateServer {
         journal
     }
 
-    pub async fn journal_to_protocol(
-        &self,
-        invocation_id: String,
-    ) -> VecDeque<(MessageType, ProtocolMessage)> {
+    pub async fn journal_to_protocol(&self, invocation_id: String) -> History {
         let journal = self.query_journal(invocation_id.clone()).await;
         //println!("{:?}", journal);
 
@@ -252,7 +251,7 @@ impl TestRestateServer {
                 };
                 (message_type, ProtocolMessage::UnparsedEntry(entry))
             })
-            .collect::<VecDeque<_>>();
+            .collect::<History>();
         let start_message = ProtocolMessage::new_start_message(
             Bytes::from(invocation_id.clone()),
             invocation_id,
@@ -273,7 +272,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_query() {
-        let invocation_id = "inv_143xqnNK7eQF3yhEo42fkRpPjKHOtPX1dv";
+        let invocation_id = "inv_17b9KnOvqTp33vcIJVH6BKWRmxeKIdaFEJ";
         let output_file = false;
         let test_server = TestRestateServer::new("".to_string()).await.unwrap();
         let journal = test_server.journal_to_protocol(invocation_id.to_owned()).await;
