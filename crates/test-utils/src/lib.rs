@@ -86,7 +86,10 @@ struct JournalRowResult {
     raw: Option<Vec<u8>>,
 }
 
-pub type History = VecDeque<(MessageType, ProtocolMessage)>;
+pub type HistoryMessage = (MessageType, ProtocolMessage);
+
+pub type History = VecDeque<HistoryMessage>;
+
 
 pub struct TestRestateServer {
     raw_client: Client,
