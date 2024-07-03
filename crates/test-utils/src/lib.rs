@@ -90,7 +90,6 @@ pub type HistoryMessage = (MessageType, ProtocolMessage);
 
 pub type History = VecDeque<HistoryMessage>;
 
-
 pub struct TestRestateServer {
     raw_client: Client,
     request_builder: RequestBuilder,

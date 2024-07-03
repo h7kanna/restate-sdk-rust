@@ -10,6 +10,7 @@ mod bundle {
     use restate::{async_recursion, Context, ContextBase};
     use serde::{Deserialize, Serialize};
     use std::{future, time::Duration};
+    use tracing::info;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct ExecInput {
@@ -38,14 +39,14 @@ mod bundle {
             ctx.run(move || {
                 let id = id.clone();
                 async move {
-                    println!("Service: service: saving signal: {}", id);
+                    info!("Service: service: saving signal: {}", id);
                     Ok(())
                 }
             })
             .await
             .unwrap();
             let signal_input = result.await.unwrap();
-            println!("Signal output: {:?}", signal_input);
+            info!("Signal output: {:?}", signal_input);
             Ok(ExecOutput { test: name.test })
         }
 

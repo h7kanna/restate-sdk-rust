@@ -19,6 +19,7 @@ mod bundle {
         ContextBase, ContextWorkflowShared, DurablePromise, WorkflowContext, WorkflowSharedContext,
     };
     use serde::{Deserialize, Serialize};
+    use tracing::info;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct ExecInput {
@@ -43,9 +44,9 @@ mod bundle {
         #[restate::handler]
         pub async fn run(ctx: WorkflowContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             let signal_input: SignalInput = ctx.promise("await_user1").awaitable().await;
-            println!("Signal output: {:?}", signal_input);
+            info!("Signal output: {:?}", signal_input);
             let signal_input: SignalInput = ctx.promise("await_user2").awaitable().await;
-            println!("Signal output: {:?}", signal_input);
+            info!("Signal output: {:?}", signal_input);
             Ok(ExecOutput { test: name.test })
         }
 
