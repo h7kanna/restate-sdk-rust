@@ -6,6 +6,7 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use prost::Message;
 use std::{future::Future, net::SocketAddr};
 use tokio::net::TcpListener;
+use tracing::info;
 
 pub mod handler;
 pub mod http2_handler;
@@ -25,7 +26,7 @@ impl RestateEndpoint {
         let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
 
         let listener = TcpListener::bind(addr).await?;
-        println!("Listening on http://{}", addr);
+        info!("Listening on http://{}", addr);
         loop {
             let (stream, _) = listener.accept().await?;
             let io = TokioIo::new(stream);
@@ -36,7 +37,7 @@ impl RestateEndpoint {
                     .serve_connection(io, service_fn(handler))
                     .await
                 {
-                    println!("Error serving connection: {:?}", err);
+                    info!("Error serving connection: {:?}", err);
                 }
             });
         }

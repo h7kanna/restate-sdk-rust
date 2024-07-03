@@ -39,6 +39,7 @@ mod tests {
     use std::{collections::VecDeque, time::Duration};
     use tokio::sync::mpsc::{channel, UnboundedSender};
     use tokio_util::sync::CancellationToken;
+    use tracing::info;
     use tracing_test::traced_test;
 
     #[derive(Serialize, Deserialize)]
@@ -128,7 +129,7 @@ mod tests {
 
                 }
             }
-            println!("Invocation done done");
+            info!("Invocation done done");
         });
 
         tokio::spawn(async move {
@@ -139,12 +140,12 @@ mod tests {
                     }
                     message = output_rx.recv() => {
                         if let Some(message) = message {
-                            println!("Output message: {:?}", message);
+                            info!("Output message: {:?}", message);
                         }
                     }
                 }
             }
-            println!("Invocation ---dfasd----->");
+            info!("Invocation ---dfasd----->");
         });
 
         tokio::time::sleep(Duration::from_secs(5)).await;

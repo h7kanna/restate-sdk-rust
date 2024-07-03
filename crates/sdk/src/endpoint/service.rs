@@ -9,6 +9,7 @@ use restate_sdk_types::{
 };
 use restate_service_protocol::message::ProtocolMessage;
 use std::time::Duration;
+use tracing::info;
 
 async fn service(
     req: Request<hyper::body::Incoming>,
@@ -37,9 +38,9 @@ async fn service(
     }
   ]
 }"#;
-            println!("{}, {}", req.method(), req.uri().path());
+            info!("{}, {}", req.method(), req.uri().path());
             for (name, header) in req.headers() {
-                println!("{:?}, {:?}", name, header);
+                info!("{:?}, {:?}", name, header);
             }
 
             let response = Response::builder()
@@ -53,9 +54,9 @@ async fn service(
 
         // Convert to uppercase before sending back to the client using a stream.
         (&Method::POST, "/invoke/Greeter/greet2") => {
-            println!("{}, {}", req.method(), req.uri().path());
+            info!("{}, {}", req.method(), req.uri().path());
             for (name, header) in req.headers() {
-                println!("{:?}, {:?}", name, header);
+                info!("{:?}, {:?}", name, header);
             }
 
             let (_, sender, boxed_body) = setup_connection(req);
@@ -91,9 +92,9 @@ async fn service(
         }
 
         (&Method::POST, "/invoke/Greeter/greet") => {
-            println!("{}, {}", req.method(), req.uri().path());
+            info!("{}, {}", req.method(), req.uri().path());
             for (name, header) in req.headers() {
-                println!("{:?}, {:?}", name, header);
+                info!("{:?}, {:?}", name, header);
             }
 
             let (_, sender, boxed_body) = setup_connection(req);
@@ -155,7 +156,7 @@ async fn service(
 
         // Return the 404 Not Found for other routes.
         _ => {
-            println!("{}, {}", req.method(), req.uri().path());
+            info!("{}, {}", req.method(), req.uri().path());
             let response = Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(empty().map_err(|e| e.into()).boxed())

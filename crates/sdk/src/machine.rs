@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use std::{future::Future, sync::Arc, task::Waker};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 const SUSPENSION_MILLIS: u32 = 30000;
 
@@ -91,7 +92,7 @@ impl StateMachine {
         let ctx = C::new(request, state_machine.clone());
         tokio::select! {
             _ = token.cancelled() => {
-               println!("State machine cancelled");
+               info!("State machine cancelled");
             }
             result = handler(ctx, input) => {
                 match result {
@@ -110,9 +111,9 @@ impl StateMachine {
                         )
                         .into();
                         let mut state_machine = state_machine.lock();
-                        println!("Invocation output:  {:?}", output);
+                        info!("Invocation output:  {:?}", output);
                         state_machine.send(output);
-                        println!("Invocation end");
+                        info!("Invocation end");
                         state_machine.send(ProtocolMessage::End(service_protocol::EndMessage {}));
                     }
                     Err(err) => {
@@ -131,7 +132,7 @@ impl StateMachine {
                 };
             }
         }
-        println!("Invocation done");
+        info!("Invocation done");
     }
 
     pub fn handle_user_code_message(
@@ -151,7 +152,7 @@ impl StateMachine {
                 Entry::Input(_) => {}
                 Entry::Output(_) => {}
                 Entry::GetState(get_state) => {
-                    println!(
+                    info!(
                         "Result does not exist for entry index {:?}, sending get state message",
                         entry_index
                     );
@@ -170,7 +171,7 @@ impl StateMachine {
                     );
                 }
                 Entry::SetState(set_state) => {
-                    println!(
+                    info!(
                         "Result does not exist for entry index {:?}, sending set state message",
                         entry_index
                     );
@@ -189,7 +190,7 @@ impl StateMachine {
                     );
                 }
                 Entry::ClearState(clear_state) => {
-                    println!(
+                    info!(
                         "Result does not exist for entry index {:?}, sending clear state message",
                         entry_index
                     );
@@ -207,7 +208,7 @@ impl StateMachine {
                     );
                 }
                 Entry::GetStateKeys(get_state_keys) => {
-                    println!(
+                    info!(
                         "Result does not exist for entry index {:?}, sending get state keys message",
                         entry_index
                     );
@@ -242,7 +243,7 @@ impl StateMachine {
                     );
                 }
                 Entry::ClearAllState => {
-                    println!(
+                    info!(
                         "Result does not exist for entry index {:?}, sending clear all state message",
                         entry_index
                     );
@@ -257,7 +258,7 @@ impl StateMachine {
                     );
                 }
                 Entry::GetPromise(get) => {
-                    println!(
+                    info!(
                         "Result does not exist for entry index {:?}, sending get promise message",
                         entry_index
                     );
@@ -276,7 +277,7 @@ impl StateMachine {
                     );
                 }
                 Entry::PeekPromise(peek) => {
-                    println!(
+                    info!(
                         "Result does not exist for entry index {:?}, sending peek promise message",
                         entry_index
                     );
@@ -295,7 +296,7 @@ impl StateMachine {
                     );
                 }
                 Entry::CompletePromise(complete) => {
-                    println!(
+                    info!(
                         "Result does not exist for entry index {:?}, sending complete promise message",
                         entry_index
                     );
@@ -326,7 +327,7 @@ impl StateMachine {
                     );
                 }
                 Entry::Sleep(sleep) => {
-                    println!(
+                    info!(
                         "Result does not exist for entry index {:?}, sending sleep message",
                         entry_index
                     );
@@ -388,7 +389,7 @@ impl StateMachine {
                     );
                 }
                 Entry::Awakeable(awakeable) => {
-                    println!(
+                    info!(
                         "Result does not exist for entry index {:?}, sending awakeable message",
                         entry_index
                     );
@@ -406,7 +407,7 @@ impl StateMachine {
                     );
                 }
                 Entry::CompleteAwakeable(complete_awakeable) => {
-                    println!(
+                    info!(
                         "Result does not exist for entry index {:?}, sending complete awakeable message",
                         entry_index
                     );
@@ -461,7 +462,7 @@ impl StateMachine {
             }
             None
         } else {
-            println!(
+            info!(
                 "Result exists for entry index {:?}, result: {:?}",
                 entry_index, result
             );
@@ -493,7 +494,7 @@ impl StateMachine {
 
 impl RestateStreamConsumer for MutexGuard<'_, StateMachine> {
     fn handle_message(&mut self, message: (MessageType, ProtocolMessage)) -> bool {
-        println!("Machine runtime message handler: {:?}", message);
+        info!("Machine runtime message handler: {:?}", message);
         if self.machine_closed {
             return false;
         }

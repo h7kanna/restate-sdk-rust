@@ -16,6 +16,7 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
+use tracing::info;
 
 macro_rules! future_impl {
     ($future:ident, $entry:ident) => {
@@ -53,10 +54,10 @@ impl Future for GetStateFuture {
             Entry::GetState(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
-            println!("GetState Result ready for entry: {}", self.entry_index);
+            info!("GetState Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
         } else {
-            println!("GetState Result pending for entry: {}", self.entry_index);
+            info!("GetState Result pending for entry: {}", self.entry_index);
             Poll::Pending
         }
     }
@@ -79,11 +80,11 @@ impl Future for GetStateKeysFuture {
             Entry::GetStateKeys(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
-            println!("GetStateKeys Result ready for entry: {}", self.entry_index);
+            info!("GetStateKeys Result ready for entry: {}", self.entry_index);
             let result = get_state_keys_entry_message::StateKeys::decode(result).unwrap();
             Poll::Ready(result.keys)
         } else {
-            println!("GetStateKeys Result pending for entry: {}", self.entry_index);
+            info!("GetStateKeys Result pending for entry: {}", self.entry_index);
             Poll::Pending
         }
     }
@@ -106,7 +107,7 @@ impl Future for SetStateFuture {
             Entry::SetState(self.entry.clone()),
             None,
         );
-        println!("SetState Result ready for entry: {}", self.entry_index);
+        info!("SetState Result ready for entry: {}", self.entry_index);
         Poll::Ready(())
     }
 }
@@ -128,7 +129,7 @@ impl Future for ClearStateFuture {
             Entry::ClearState(self.entry.clone()),
             None,
         );
-        println!("ClearState Result ready for entry: {}", self.entry_index);
+        info!("ClearState Result ready for entry: {}", self.entry_index);
         Poll::Ready(())
     }
 }
@@ -159,7 +160,7 @@ impl Future for ClearAllStateFuture {
         self.state_machine
             .lock()
             .handle_user_code_message(self.entry_index, Entry::ClearAllState, None);
-        println!("ClearAllState Result ready for entry: {}", self.entry_index);
+        info!("ClearAllState Result ready for entry: {}", self.entry_index);
         Poll::Ready(())
     }
 }
@@ -181,10 +182,10 @@ impl Future for AwakeableFuture {
             Entry::Awakeable(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
-            println!("Run Result ready for entry: {}", self.entry_index);
+            info!("Run Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
         } else {
-            println!("Run Result pending for entry: {}", self.entry_index);
+            info!("Run Result pending for entry: {}", self.entry_index);
             Poll::Pending
         }
     }
@@ -207,10 +208,10 @@ impl Future for SleepFuture {
             Entry::Sleep(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
-            println!("Sleep Result ready for entry: {}", self.entry_index);
+            info!("Sleep Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
         } else {
-            println!("Sleep Result pending for entry: {}", self.entry_index);
+            info!("Sleep Result pending for entry: {}", self.entry_index);
             Poll::Pending
         }
     }
@@ -233,10 +234,10 @@ impl Future for RunFuture {
             Entry::Run(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
-            println!("Run Result ready for entry: {}", self.entry_index);
+            info!("Run Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
         } else {
-            println!("Run Result pending for entry: {}", self.entry_index);
+            info!("Run Result pending for entry: {}", self.entry_index);
             Poll::Pending
         }
     }
@@ -270,10 +271,10 @@ impl<T> Future for CallServiceFuture<T> {
             Entry::Call(self.invoke_entry.clone()),
             Some(cx.waker().clone()),
         ) {
-            println!("Call Result ready for entry: {}", self.entry_index);
+            info!("Call Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
         } else {
-            println!("Call Result pending for entry: {}", self.entry_index);
+            info!("Call Result pending for entry: {}", self.entry_index);
             Poll::Pending
         }
     }
@@ -296,10 +297,10 @@ impl Future for GetPromiseFuture {
             Entry::GetPromise(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
-            println!("GetPromise Result ready for entry: {}", self.entry_index);
+            info!("GetPromise Result ready for entry: {}", self.entry_index);
             Poll::Ready(result)
         } else {
-            println!("GetPromise Result pending for entry: {}", self.entry_index);
+            info!("GetPromise Result pending for entry: {}", self.entry_index);
             Poll::Pending
         }
     }
@@ -322,14 +323,14 @@ impl Future for PeekPromiseFuture {
             Entry::PeekPromise(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
-            println!("PeekPromise Result ready for entry: {}", self.entry_index);
+            info!("PeekPromise Result ready for entry: {}", self.entry_index);
             if !result.is_empty() {
                 Poll::Ready(Some(result))
             } else {
                 Poll::Ready(None)
             }
         } else {
-            println!("PeekPromise Result pending for entry: {}", self.entry_index);
+            info!("PeekPromise Result pending for entry: {}", self.entry_index);
             Poll::Pending
         }
     }
@@ -352,10 +353,10 @@ impl Future for CompletePromiseFuture {
             Entry::CompletePromise(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
-            println!("CompletePromise Result ready for entry: {}", self.entry_index);
+            info!("CompletePromise Result ready for entry: {}", self.entry_index);
             Poll::Ready(())
         } else {
-            println!("CompletePromise Result pending for entry: {}", self.entry_index);
+            info!("CompletePromise Result pending for entry: {}", self.entry_index);
             Poll::Pending
         }
     }

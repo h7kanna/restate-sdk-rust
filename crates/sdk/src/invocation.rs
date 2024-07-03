@@ -10,6 +10,7 @@ use restate_service_protocol::{
     message::{MessageType, ProtocolMessage},
 };
 use std::{cmp::PartialEq, collections::HashMap};
+use tracing::info;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum State {
@@ -90,7 +91,7 @@ impl InvocationBuilder {
     fn deserialize_entry(&mut self, message: ProtocolMessage) -> Option<Entry> {
         if let ProtocolMessage::UnparsedEntry(raw_entry) = message {
             let expected_entry = raw_entry.deserialize_entry_ref::<ProtobufRawEntryCodec>();
-            //println!("Entry received {:?}", expected_entry);
+            //info!("Entry received {:?}", expected_entry);
             //TODO: Handle error
             Some(expected_entry.unwrap())
         } else {
@@ -154,7 +155,7 @@ impl RestateStreamConsumer for InvocationBuilder {
         } else {
             self.state = State::ExpectingFurtherReplay;
         }
-        println!("Invocation builder state: {:?}", self.state);
+        info!("Invocation builder state: {:?}", self.state);
         self.is_complete()
     }
 }

@@ -9,6 +9,7 @@ use restate_sdk_core::ServiceHandler;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 pub async fn handle_invocation<C, F, I, R>(
     handler: F,
@@ -29,14 +30,14 @@ pub async fn handle_invocation<C, F, I, R>(
     loop {
         tokio::select! {
             _ = token.cancelled() => {
-                println!("Invocation cancelled");
+                info!("Invocation cancelled");
                 return;
             }
             message = receiver.recv() => {
                 if let Some(message) = message {
-                    println!("Messages received {:?}", message);
+                    info!("Messages received {:?}", message);
                     if builder.handle_message(message) {
-                        println!("Messages completed");
+                        info!("Messages completed");
                         break;
                     }
                 }
@@ -45,7 +46,7 @@ pub async fn handle_invocation<C, F, I, R>(
     }
     let invocation = builder.build();
 
-    println!("Invocation started {:?}", invocation.id);
+    info!("Invocation started {:?}", invocation.id);
     let invocation_id = invocation.id.clone();
     // step 2: create the state machine
     let (state_machine, mut suspension_rx) = if test {
@@ -79,7 +80,7 @@ pub async fn handle_invocation<C, F, I, R>(
                 }
             }
         }
-        println!("Stream consumption completed");
+        info!("Stream consumption completed");
     });
 
     // step 4: create suspension stream consumer
@@ -93,13 +94,13 @@ pub async fn handle_invocation<C, F, I, R>(
                 }
                 message = suspension_rx.recv() => {
                    if let Some(message) = message {
-                       println!("scheduling suspension: {:?}", message);
+                       info!("scheduling suspension: {:?}", message);
                         suspension_consumer.lock().suspend();
                     }
                 }
             }
         }
-        println!("Suspension task completed");
+        info!("Suspension task completed");
     });
 
     // step 5: invoke the function

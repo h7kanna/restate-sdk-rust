@@ -29,6 +29,7 @@ use std::{
     task::Poll,
     time::{Duration, SystemTime},
 };
+use tracing::info;
 
 #[derive(Clone)]
 pub struct Request {
@@ -102,7 +103,7 @@ pub trait ContextBase: ContextInstance {
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Time went backwards");
         let wake_up_time = wake_up_time.as_millis() as u64 + timeout_millis;
-        println!("Context sleep: Wake up time {}", wake_up_time);
+        info!("Context sleep: Wake up time {}", wake_up_time);
         async move {
             let _ = SleepFuture::new(
                 SleepEntry {

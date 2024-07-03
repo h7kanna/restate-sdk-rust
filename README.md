@@ -61,7 +61,7 @@ restate invocations list
 restate invocations describe inv_1i8DzzOL6iN178sv2hRPz1aZ32v3lNyhWh
 restate invocations cancel --yes inv_1gSomuaZJqT10TzzSN1nTOFycg8aggtPrj
 
-restate sql "SELECT * FROM sys_journal sj WHERE sj.id = 'inv_1i8DzzOL6iN10fpwaaT2jvVKlV6QY9cUCZ' ORDER BY index LIMIT 100"
+restate sql "SELECT * FROM sys_journal sj WHERE sj.id = 'inv_1i8DzzOL6iN15RZf4d9lHyYfuTAtp3ebNn' ORDER BY index LIMIT 100"
 
 ```
 
