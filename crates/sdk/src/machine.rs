@@ -74,22 +74,22 @@ impl StateMachine {
         &mut self.local_state_store
     }
 
-    pub async fn invoke<C, F, I, R>(
+    pub async fn invoke<Context, Func, Input, Output>(
         token: CancellationToken,
-        handler: F,
+        handler: Func,
         state_machine: Arc<Mutex<StateMachine>>,
     ) where
-        for<'a> I: Serialize + Deserialize<'a>,
-        for<'a> R: Serialize + Deserialize<'a>,
-        F: ServiceHandler<C, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
-        C: ContextInstance,
+        for<'a> Input: Serialize + Deserialize<'a>,
+        for<'a> Output: Serialize + Deserialize<'a>,
+        Func: ServiceHandler<Context, Input, Output = Result<Output, anyhow::Error>> + Send + Sync + 'static,
+        Context: ContextInstance,
     {
         let input = state_machine.lock().input.clone().unwrap();
         let input = serde_json::from_slice(&input.to_vec()).unwrap();
         let request = Request {
             id: state_machine.lock().journal.invocation().id.clone(),
         };
-        let ctx = C::new(request, state_machine.clone());
+        let ctx = Context::new(request, state_machine.clone());
         tokio::select! {
             _ = token.cancelled() => {
                info!("State machine cancelled");

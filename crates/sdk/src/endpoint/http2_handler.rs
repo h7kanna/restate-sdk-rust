@@ -7,17 +7,17 @@ use restate_sdk_core::ServiceHandler;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
-pub async fn handle<C, F, I, R>(
-    handler: F,
+pub async fn handle<Context, Func, Input, Output>(
+    handler: Func,
     token: Option<CancellationToken>,
     receiver: Http2Receiver,
     sender: Http2Sender,
     test: bool,
 ) where
-    for<'a> I: Serialize + Deserialize<'a>,
-    for<'a> R: Serialize + Deserialize<'a>,
-    F: ServiceHandler<C, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
-    C: ContextInstance,
+    for<'a> Input: Serialize + Deserialize<'a>,
+    for<'a> Output: Serialize + Deserialize<'a>,
+    Func: ServiceHandler<Context, Input, Output = Result<Output, anyhow::Error>> + Send + Sync + 'static,
+    Context: ContextInstance,
 {
     handle_invocation(handler, token, receiver, sender, test).await
 }

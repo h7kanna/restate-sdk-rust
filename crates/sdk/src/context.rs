@@ -117,10 +117,10 @@ pub trait ContextBase: ContextInstance {
         }
     }
 
-    fn run<F, R>(&self, func: F) -> impl Future<Output = Result<(), anyhow::Error>> + '_
+    fn run<Func, Output>(&self, func: Func) -> impl Future<Output = Result<(), anyhow::Error>> + '_
     where
-        for<'a> R: Serialize + Deserialize<'a>,
-        F: RunAction<Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
+        for<'a> Output: Serialize + Deserialize<'a>,
+        Func: RunAction<Output = Result<Output, anyhow::Error>> + Send + Sync + 'static,
     {
         async move {
             let _ = RunFuture::new(
@@ -134,19 +134,19 @@ pub trait ContextBase: ContextInstance {
         }
     }
 
-    fn invoke<C, F, I, R>(
+    fn invoke<Context, Func, Input, Output>(
         &self,
-        _func: F,
+        _func: Func,
         service_name: String,
         handler_name: String,
-        parameter: I,
+        parameter: Input,
         key: Option<String>,
-    ) -> impl Future<Output = Result<R, anyhow::Error>> + '_
+    ) -> impl Future<Output = Result<Output, anyhow::Error>> + '_
     where
-        for<'a> I: Serialize + Deserialize<'a>,
-        for<'a> R: Serialize + Deserialize<'a>,
-        F: ServiceHandler<C, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
-        C: ContextInstance,
+        for<'a> Input: Serialize + Deserialize<'a>,
+        for<'a> Output: Serialize + Deserialize<'a>,
+        Func: ServiceHandler<Context, Input, Output = Result<Output, anyhow::Error>> + Send + Sync + 'static,
+        Context: ContextInstance,
     {
         let parameter = serde_json::to_string(&parameter).unwrap();
         async move {
@@ -166,7 +166,7 @@ pub trait ContextBase: ContextInstance {
 
             // If the system call is completed, deserialize the result and return
             let bytes = bytes.to_vec();
-            let result: R = serde_json::from_slice(&bytes).unwrap();
+            let result: Output = serde_json::from_slice(&bytes).unwrap();
             Ok(result)
         }
     }

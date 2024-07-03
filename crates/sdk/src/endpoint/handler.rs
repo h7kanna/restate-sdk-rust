@@ -11,17 +11,17 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-pub async fn handle_invocation<C, F, I, R>(
-    handler: F,
+pub async fn handle_invocation<Context, Func, Input, Output>(
+    handler: Func,
     token: Option<CancellationToken>,
     mut receiver: impl MessageReceiver + 'static,
     sender: impl MessageSender + 'static,
     test: bool,
 ) where
-    for<'a> I: Serialize + Deserialize<'a>,
-    for<'a> R: Serialize + Deserialize<'a>,
-    F: ServiceHandler<C, I, Output = Result<R, anyhow::Error>> + Send + Sync + 'static,
-    C: ContextInstance,
+    for<'a> Input: Serialize + Deserialize<'a>,
+    for<'a> Output: Serialize + Deserialize<'a>,
+    Func: ServiceHandler<Context, Input, Output = Result<Output, anyhow::Error>> + Send + Sync + 'static,
+    Context: ContextInstance,
 {
     let token = token.unwrap_or_else(|| CancellationToken::new());
 
