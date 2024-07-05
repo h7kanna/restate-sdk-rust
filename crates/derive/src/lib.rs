@@ -112,7 +112,6 @@ pub fn bundle(args: TokenStream, item: TokenStream) -> TokenStream {
                 #(#methods)*
                 // Return the 404 Not Found for other routes.
                 _ => {
-                    println!("{}, {}", req.method(), req.uri().path());
                     let response = Response::builder()
                         .status(StatusCode::NOT_FOUND)
                         .body(empty().map_err(|e| e.into()).boxed())
