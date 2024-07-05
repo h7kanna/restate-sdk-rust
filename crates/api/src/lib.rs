@@ -17,3 +17,5 @@ pub use restate_sdk::{
 };
 pub use restate_sdk_client::{HttpIngress, Ingress};
 pub use restate_sdk_derive::{bundle, handler, main, object, service, workflow};
+
+#[cfg(feature = "logger")] pub use restate_sdk::logger;

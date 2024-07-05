@@ -6,8 +6,9 @@ license = "MIT OR Apache-2.0"
 rust-version = { workspace = true }
 
 [features]
-default = []
+default = ["logger"]
 tokio = []
+logger = ["tracing-subscriber"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -49,8 +50,7 @@ tower = { version = "0.4.13", features = ["util"] }
 tower-http = { version = "0.5.2", features = ["cors", "normalize-path"] }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
-tracing-opentelemetry = { workspace = true }
-tracing-subscriber = { version = "0.3", features = ["parking_lot", "env-filter", "registry"] }
+tracing-subscriber = { version = "0.3", features = ["registry"], optional = true }
 url = { workspace = true }
 uuid = { version = "1.8.0", features = ["v4"] }
 

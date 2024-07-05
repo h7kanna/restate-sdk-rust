@@ -1,6 +1,6 @@
 use crate::machine::StateMachine;
 use bytes::Bytes;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, MutexGuard};
 use prost::Message;
 use restate_sdk_types::{
     journal::{
@@ -33,6 +33,14 @@ macro_rules! future_impl {
             pub fn entry(&self) -> u32 {
                 self.entry_index
             }
+
+            fn set_span(&self, state_machine: MutexGuard<'_, StateMachine>) {
+                if !state_machine.is_replaying() {
+                    tracing::Span::current().record("replay", false);
+                } else {
+                    tracing::Span::current().record("replay", true);
+                }
+            }
         }
     };
 }
@@ -49,12 +57,14 @@ impl Future for GetStateFuture {
     type Output = Bytes;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+        let mut state_machine = self.state_machine.lock();
+        if let Some(result) = state_machine.handle_user_code_message(
             self.entry_index,
             Entry::GetState(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
             info!("GetState Result ready for entry: {}", self.entry_index);
+            self.set_span(state_machine);
             Poll::Ready(result)
         } else {
             info!("GetState Result pending for entry: {}", self.entry_index);
@@ -75,13 +85,15 @@ impl Future for GetStateKeysFuture {
     type Output = Vec<Bytes>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+        let mut state_machine = self.state_machine.lock();
+        if let Some(result) = state_machine.handle_user_code_message(
             self.entry_index,
             Entry::GetStateKeys(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
             info!("GetStateKeys Result ready for entry: {}", self.entry_index);
             let result = get_state_keys_entry_message::StateKeys::decode(result).unwrap();
+            self.set_span(state_machine);
             Poll::Ready(result.keys)
         } else {
             info!("GetStateKeys Result pending for entry: {}", self.entry_index);
@@ -177,12 +189,14 @@ impl Future for AwakeableFuture {
     type Output = Bytes;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+        let mut state_machine = self.state_machine.lock();
+        if let Some(result) = state_machine.handle_user_code_message(
             self.entry_index,
             Entry::Awakeable(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
             info!("Run Result ready for entry: {}", self.entry_index);
+            self.set_span(state_machine);
             Poll::Ready(result)
         } else {
             info!("Run Result pending for entry: {}", self.entry_index);
@@ -203,12 +217,14 @@ impl Future for SleepFuture {
     type Output = Bytes;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+        let mut state_machine = self.state_machine.lock();
+        if let Some(result) = state_machine.handle_user_code_message(
             self.entry_index,
             Entry::Sleep(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
             info!("Sleep Result ready for entry: {}", self.entry_index);
+            self.set_span(state_machine);
             Poll::Ready(result)
         } else {
             info!("Sleep Result pending for entry: {}", self.entry_index);
@@ -229,12 +245,14 @@ impl Future for RunFuture {
     type Output = Bytes;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+        let mut state_machine = self.state_machine.lock();
+        if let Some(result) = state_machine.handle_user_code_message(
             self.entry_index,
             Entry::Run(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
             info!("Run Result ready for entry: {}", self.entry_index);
+            self.set_span(state_machine);
             Poll::Ready(result)
         } else {
             info!("Run Result pending for entry: {}", self.entry_index);
@@ -260,18 +278,28 @@ impl<T> CallServiceFuture<T> {
             _ret: PhantomData,
         }
     }
+
+    fn set_span(&self, state_machine: MutexGuard<'_, StateMachine>) {
+        if !state_machine.is_replaying() {
+            tracing::Span::current().record("replay", false);
+        } else {
+            tracing::Span::current().record("replay", true);
+        }
+    }
 }
 
 impl<T> Future for CallServiceFuture<T> {
     type Output = Bytes;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+        let mut state_machine = self.state_machine.lock();
+        if let Some(result) = state_machine.handle_user_code_message(
             self.entry_index,
             Entry::Call(self.invoke_entry.clone()),
             Some(cx.waker().clone()),
         ) {
             info!("Call Result ready for entry: {}", self.entry_index);
+            self.set_span(state_machine);
             Poll::Ready(result)
         } else {
             info!("Call Result pending for entry: {}", self.entry_index);
@@ -292,12 +320,14 @@ impl Future for GetPromiseFuture {
     type Output = Bytes;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+        let mut state_machine = self.state_machine.lock();
+        if let Some(result) = state_machine.handle_user_code_message(
             self.entry_index,
             Entry::GetPromise(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
             info!("GetPromise Result ready for entry: {}", self.entry_index);
+            self.set_span(state_machine);
             Poll::Ready(result)
         } else {
             info!("GetPromise Result pending for entry: {}", self.entry_index);
@@ -318,12 +348,14 @@ impl Future for PeekPromiseFuture {
     type Output = Option<Bytes>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.state_machine.lock().handle_user_code_message(
+        let mut state_machine = self.state_machine.lock();
+        if let Some(result) = state_machine.handle_user_code_message(
             self.entry_index,
             Entry::PeekPromise(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
             info!("PeekPromise Result ready for entry: {}", self.entry_index);
+            self.set_span(state_machine);
             if !result.is_empty() {
                 Poll::Ready(Some(result))
             } else {
@@ -348,12 +380,14 @@ impl Future for CompletePromiseFuture {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(_) = self.state_machine.lock().handle_user_code_message(
+        let mut state_machine = self.state_machine.lock();
+        if let Some(_) = state_machine.handle_user_code_message(
             self.entry_index,
             Entry::CompletePromise(self.entry.clone()),
             Some(cx.waker().clone()),
         ) {
             info!("CompletePromise Result ready for entry: {}", self.entry_index);
+            self.set_span(state_machine);
             Poll::Ready(())
         } else {
             info!("CompletePromise Result pending for entry: {}", self.entry_index);

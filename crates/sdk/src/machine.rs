@@ -3,7 +3,7 @@ use crate::{
     context::{ContextData, ContextInstance, Request},
     invocation::Invocation,
     journal::Journal,
-    logger::Logger,
+    logger::ReplayFilter,
     store::LocalStateStore,
 };
 use bytes::Bytes;
@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use std::{future::Future, sync::Arc, task::Waker};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{field, info, info_span, Instrument};
 
 const SUSPENSION_MILLIS: u32 = 30000;
 
@@ -36,7 +36,7 @@ pub(crate) struct StateMachine {
     machine_closed: bool,
     input_channel_closed: bool,
     local_state_store: LocalStateStore,
-    logger: Logger,
+    logger: ReplayFilter,
     suspension_tx: UnboundedSender<String>,
     connection: Option<Box<dyn MessageSender>>,
     abort: Option<Box<dyn MessageSender>>,
@@ -59,7 +59,7 @@ impl StateMachine {
                 machine_closed: false,
                 input_channel_closed: false,
                 local_state_store: store.unwrap(),
-                logger: Logger::new(),
+                logger: ReplayFilter::new(),
                 suspension_tx,
                 connection,
                 abort,
@@ -86,15 +86,21 @@ impl StateMachine {
     {
         let input = state_machine.lock().input.clone().unwrap();
         let input = serde_json::from_slice(&input.to_vec()).unwrap();
-        let request = Request {
-            id: state_machine.lock().journal.invocation().id.clone(),
-        };
+        let id = state_machine.lock().journal.invocation().id.clone();
+        let span = info_span!(
+            "invoke",
+            "otel.name" = format!("Invocation:{:?}", id),
+            "otel.kind" = "server",
+            "replay" = field::Empty,
+        );
+        let request = Request { id };
         let ctx = Context::new(request, state_machine.clone());
+        let handle = handler(ctx, input).instrument(span);
         tokio::select! {
             _ = token.cancelled() => {
                info!("State machine cancelled");
             }
-            result = handler(ctx, input) => {
+            result = handle => {
                 match result {
                     Ok(result) => {
                         let result = serde_json::to_string(&result).unwrap();
@@ -135,6 +141,7 @@ impl StateMachine {
         info!("Invocation done");
     }
 
+    #[tracing::instrument(parent = None, skip(self, waker, message))]
     pub fn handle_user_code_message(
         &mut self,
         entry_index: u32,
@@ -490,6 +497,10 @@ impl StateMachine {
     }
 
     pub fn suspend(&self) {}
+
+    pub fn is_replaying(&self) -> bool {
+        self.journal.is_replaying()
+    }
 }
 
 impl RestateStreamConsumer for MutexGuard<'_, StateMachine> {

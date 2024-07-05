@@ -103,6 +103,7 @@ impl Journal {
         }
     }
 
+    #[tracing::instrument(skip(self, entry, waker))]
     pub fn handle_user_code_message(
         &mut self,
         entry_index: u32,
@@ -382,6 +383,7 @@ impl Journal {
 
     fn resolve_result(&self) {}
 
+    #[tracing::instrument(parent = None, skip(self, message))]
     pub fn handle_runtime_completion_message(&self, message: CompletionMessage) {
         let journal_entry = self.pending_entries.get_mut(&message.entry_index);
         if let Some(mut journal_entry) = journal_entry {
@@ -527,6 +529,7 @@ impl Journal {
         }
     }
 
+    #[tracing::instrument(parent = None, skip(self, message))]
     pub fn handle_runtime_entry_ack_message(&self, message: EntryAckMessage) {
         if let Some((_, entry)) = self.pending_entries.remove(&message.entry_index) {
             if let Some(waker) = entry.waker {

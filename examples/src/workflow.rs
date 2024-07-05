@@ -1,14 +1,15 @@
 use restate::endpoint;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
 #[restate::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // initialize tracing
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| "restate_sdk=debug,tower_http=debug".into());
+        .unwrap_or_else(|_| "workflow=debug,restate_sdk=debug,tower_http=debug".into());
+    let replay_filter = restate::logger::ReplayFilter::new();
     tracing_subscriber::registry()
         .with(env_filter)
-        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer().with_filter(replay_filter))
         .init();
     endpoint(service).await
 }
@@ -44,9 +45,9 @@ mod bundle {
         #[restate::handler]
         pub async fn run(ctx: WorkflowContext, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             let signal_input: SignalInput = ctx.promise("await_user1").awaitable().await;
-            info!("Signal output: {:?}", signal_input);
+            info!("Signal1 output: {:?}", signal_input);
             let signal_input: SignalInput = ctx.promise("await_user2").awaitable().await;
-            info!("Signal output: {:?}", signal_input);
+            info!("Signal2 output: {:?}", signal_input);
             Ok(ExecOutput { test: name.test })
         }
 

@@ -29,7 +29,7 @@ use std::{
     task::Poll,
     time::{Duration, SystemTime},
 };
-use tracing::info;
+use tracing::{info, Instrument};
 
 #[derive(Clone)]
 pub struct Request {
@@ -406,7 +406,7 @@ impl DurablePromise for DurablePromiseImpl {
         );
 
         async move {
-            let bytes = peek_promise.await;
+            let bytes = peek_promise.in_current_span().await;
             bytes.map(|bytes| {
                 // If the system call is completed, deserialize the result and return
                 let bytes = bytes.to_vec();
@@ -461,7 +461,7 @@ impl DurablePromise for DurablePromiseImpl {
             self.state_machine.clone(),
         );
         async move {
-            let bytes = get_promise.await;
+            let bytes = get_promise.in_current_span().await;
             // If the system call is completed, deserialize the result and return
             let bytes = bytes.to_vec();
             let result: T = serde_json::from_slice(&bytes).unwrap();
