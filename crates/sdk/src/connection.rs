@@ -11,7 +11,7 @@ use restate_service_protocol::message::{Decoder, Encoder, MessageType, ProtocolM
 use std::{collections::VecDeque, future::Future};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::info;
+use tracing::debug;
 
 pub(crate) trait Sealed {}
 
@@ -88,7 +88,7 @@ impl Sealed for Http2Sender {}
 impl MessageSender for Http2Sender {
     fn send(&self, message: ProtocolMessage) {
         if let Err(err) = self.outbound_tx.send(message) {
-            info!("Outbound send error: {}", err);
+            debug!("Outbound send error: {}", err);
         }
     }
 }
@@ -117,17 +117,17 @@ pub fn setup_connection(
                         if let Some((header, message)) = result {
                             //info!("Header: {:?}, Message: {:?}", header, message);
                             if let Err(err) = inbound_tx.send((header.message_type(), message)) {
-                                info!("Send failed {}", err);
+                                debug!("Send failed {}", err);
                             }
                         }
                     }
                     Err(err) => {
-                        info!("decode error: {:?}", err);
+                        debug!("decode error: {:?}", err);
                     }
                 }
             };
         }
-        info!("HTTP request stream closed");
+        debug!("HTTP request stream closed");
     });
 
     // Setup outbound message buffer
@@ -135,7 +135,7 @@ pub fn setup_connection(
     let encoder = Encoder::new(ServiceProtocolVersion::V1);
     let boxed_body = BodyExt::boxed(StreamBody::new(UnboundedReceiverStream::new(outbound_rx).map(
         move |message| {
-            info!("Sending response message: {:?}", message);
+            debug!("Sending response message: {:?}", message);
             let result = encoder.encode(message);
             Ok(Frame::data(result))
         },

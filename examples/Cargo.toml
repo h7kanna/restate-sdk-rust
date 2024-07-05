@@ -57,4 +57,4 @@ serde = { workspace = true }
 tokio = { version = "1", features = ["full"] }
 tracing = { workspace = true }
 tracing-opentelemetry = { workspace = true }
-tracing-subscriber = { version = "0.3", features = ["parking_lot", "env-filter", "registry"] }
+tracing-subscriber = { version = "0.3", features = ["parking_lot", "env-filter", "registry", "json"] }

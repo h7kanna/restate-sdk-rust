@@ -9,7 +9,7 @@ use restate_sdk_core::ServiceHandler;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::debug;
 
 pub async fn handle_invocation<Context, Func, Input, Output>(
     handler: Func,
@@ -30,14 +30,14 @@ pub async fn handle_invocation<Context, Func, Input, Output>(
     loop {
         tokio::select! {
             _ = token.cancelled() => {
-                info!("Invocation cancelled");
+                debug!("Invocation cancelled");
                 return;
             }
             message = receiver.recv() => {
                 if let Some(message) = message {
-                    info!("Messages received {:?}", message);
+                    debug!("Messages received {:?}", message);
                     if builder.handle_message(message) {
-                        info!("Messages completed");
+                        debug!("Messages completed");
                         break;
                     }
                 }
@@ -46,7 +46,7 @@ pub async fn handle_invocation<Context, Func, Input, Output>(
     }
     let invocation = builder.build();
 
-    info!("Invocation started {:?}", invocation.id);
+    debug!("Invocation started {:?}", invocation.debug_id);
     let invocation_id = invocation.id.clone();
     // step 2: create the state machine
     let (state_machine, mut suspension_rx) = if test {
@@ -80,7 +80,7 @@ pub async fn handle_invocation<Context, Func, Input, Output>(
                 }
             }
         }
-        info!("Stream consumption completed");
+        debug!("Stream consumption completed");
     });
 
     // step 4: create suspension stream consumer
@@ -94,13 +94,13 @@ pub async fn handle_invocation<Context, Func, Input, Output>(
                 }
                 message = suspension_rx.recv() => {
                    if let Some(message) = message {
-                       info!("scheduling suspension: {:?}", message);
+                       debug!("scheduling suspension: {:?}", message);
                         suspension_consumer.lock().suspend();
                     }
                 }
             }
         }
-        info!("Suspension task completed");
+        debug!("Suspension task completed");
     });
 
     // step 5: invoke the function

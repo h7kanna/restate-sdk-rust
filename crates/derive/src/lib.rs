@@ -139,7 +139,6 @@ fn handler_methods(service: &Service) -> Vec<proc_macro2::TokenStream> {
                 tokio::spawn(
                     async move {
                         http2_handler::handle(bundle::#service::#handler, None, receiver, sender, false).await;
-                        tracing::info!("Invocation task completed");
                     },
                 );
                 let response = Response::builder()

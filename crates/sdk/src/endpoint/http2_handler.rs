@@ -6,6 +6,7 @@ use crate::{
 use restate_sdk_core::ServiceHandler;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
+use tracing::debug;
 
 pub async fn handle<Context, Func, Input, Output>(
     handler: Func,
@@ -19,7 +20,8 @@ pub async fn handle<Context, Func, Input, Output>(
     Func: ServiceHandler<Context, Input, Output = Result<Output, anyhow::Error>> + Send + Sync + 'static,
     Context: ContextInstance,
 {
-    handle_invocation(handler, token, receiver, sender, test).await
+    handle_invocation(handler, token, receiver, sender, test).await;
+    debug!("Invocation task completed");
 }
 
 #[cfg(test)]

@@ -63,7 +63,6 @@ impl<S: Subscriber + for<'lookup> LookupSpan<'lookup>> Filter<S> for ReplayFilte
         let span = ctx.span(id).unwrap();
         let mut extensions = span.extensions_mut();
         extensions.replace::<ReplayField>(ReplayField(visitor.0));
-        println!("Setting replay to {}", visitor.0);
     }
 }
 

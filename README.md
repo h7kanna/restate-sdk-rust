@@ -30,6 +30,8 @@ restate dp add --yes http://localhost:3000
 
 restate dp add --yes --force http://localhost:3000
 
+curl -v localhost:8080/greeter/greet -H 'content-type: application/json' -d '"world"'
+
 curl -v localhost:8080/Greeter/greet -H 'content-type: application/json' -d '{"test": "test"}'
 
 curl -v localhost:8080/Service/service -H 'content-type: application/json' -d '{"test": "test"}'
@@ -61,7 +63,7 @@ restate invocations list
 restate invocations describe inv_1i8DzzOL6iN178sv2hRPz1aZ32v3lNyhWh
 restate invocations cancel --yes inv_1gSomuaZJqT10TzzSN1nTOFycg8aggtPrj
 
-restate sql "SELECT * FROM sys_journal sj WHERE sj.id = 'inv_1i8DzzOL6iN15RZf4d9lHyYfuTAtp3ebNn' ORDER BY index LIMIT 100"
+restate sql "SELECT * FROM sys_journal sj WHERE sj.id = 'inv_1i8DzzOL6iN17u6DCDTNaXM5CXyZcRABXP' ORDER BY index LIMIT 100"
 
 ```
 

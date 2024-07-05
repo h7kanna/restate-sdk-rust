@@ -14,7 +14,7 @@ use restate_sdk_types::{
     },
 };
 use std::{cmp::PartialEq, task::Waker};
-use tracing::info;
+use tracing::debug;
 
 #[derive(Debug, PartialEq)]
 pub enum NewExecutionState {
@@ -55,7 +55,7 @@ impl Journal {
                 // Error should be input message
             }
         }
-        info!(
+        debug!(
             "Journal state: {:?}, Entries to replay: {}",
             journal.state, journal.invocation.number_entries_to_replay
         );
@@ -88,7 +88,7 @@ impl Journal {
                 self.state = new_state;
             }
         }
-        info!(
+        debug!(
             "Journal state: {:?}, Journal user index: {}",
             self.state, self.user_code_journal_index
         );
@@ -110,7 +110,7 @@ impl Journal {
         entry: Entry,
         waker: Option<Waker>,
     ) -> Option<Bytes> {
-        info!(
+        debug!(
             "Handle user code entry_index: {}, journal_index: {}, state: {:?}, replay_entries: {}",
             entry_index,
             self.get_user_code_journal_index(),
@@ -197,7 +197,7 @@ impl Journal {
                         if let Some(result) = sleep.result.as_ref() {
                             match result {
                                 SleepResult::Fired => {
-                                    info!("Sleep fired for entry index: {}", entry_index);
+                                    debug!("Sleep fired for entry index: {}", entry_index);
                                     return Some(Bytes::new());
                                 }
                                 SleepResult::Failure(_, _) => {}
@@ -387,7 +387,7 @@ impl Journal {
     pub fn handle_runtime_completion_message(&self, message: CompletionMessage) {
         let journal_entry = self.pending_entries.get_mut(&message.entry_index);
         if let Some(mut journal_entry) = journal_entry {
-            info!("Journal runtime message entry: {:?}", journal_entry);
+            debug!("Journal runtime message entry: {:?}", journal_entry);
             match &mut journal_entry.entry {
                 Entry::GetState(get_state) => match message.result {
                     Some(result) => match result {
@@ -395,8 +395,8 @@ impl Journal {
                             get_state.value = Some(CompletionResult::Empty)
                         }
                         completion_message::Result::Value(ref value) => {
-                            info!("{:?}", value);
-                            info!("Journal runtime message get state value: {:?}", result);
+                            debug!("{:?}", value);
+                            debug!("Journal runtime message get state value: {:?}", result);
                             get_state.value = Some(CompletionResult::Success(value.clone()));
                         }
                         completion_message::Result::Failure(failure) => {
@@ -430,8 +430,8 @@ impl Journal {
                     Some(result) => match result {
                         completion_message::Result::Empty(_) => {}
                         completion_message::Result::Value(ref value) => {
-                            info!("{:?}", value);
-                            info!("Journal runtime message get promise value: {:?}", result);
+                            debug!("{:?}", value);
+                            debug!("Journal runtime message get promise value: {:?}", result);
                             get_promise.value = Some(EntryResult::Success(value.clone()));
                         }
                         completion_message::Result::Failure(failure) => {
@@ -447,8 +447,8 @@ impl Journal {
                             peek_promise.value = Some(CompletionResult::Empty);
                         }
                         completion_message::Result::Value(ref value) => {
-                            info!("{:?}", value);
-                            info!("Journal runtime message get promise value: {:?}", result);
+                            debug!("{:?}", value);
+                            debug!("Journal runtime message get promise value: {:?}", result);
                             peek_promise.value = Some(CompletionResult::Success(value.clone()));
                         }
                         completion_message::Result::Failure(failure) => {
@@ -463,7 +463,7 @@ impl Journal {
                 Entry::CompletePromise(complete_promise) => match message.result {
                     Some(result) => match result {
                         completion_message::Result::Empty(_) | completion_message::Result::Value(_) => {
-                            info!("Journal runtime message get promise value: {:?}", result);
+                            debug!("Journal runtime message get promise value: {:?}", result);
                             complete_promise.value = Some(CompleteResult::Done);
                         }
                         completion_message::Result::Failure(failure) => {
@@ -479,7 +479,7 @@ impl Journal {
                     match message.result {
                         Some(result) => match result {
                             completion_message::Result::Empty(_) | completion_message::Result::Value(_) => {
-                                info!("Journal runtime message sleep value: {:?}", result);
+                                debug!("Journal runtime message sleep value: {:?}", result);
                                 sleep.result = Some(SleepResult::Fired);
                             }
                             completion_message::Result::Failure(_) => {}
@@ -492,8 +492,8 @@ impl Journal {
                     Some(result) => match result {
                         completion_message::Result::Empty(_) => {}
                         completion_message::Result::Value(value) => {
-                            info!("{:?}", value);
-                            info!("Journal runtime message call value: {:?}", value);
+                            debug!("{:?}", value);
+                            debug!("Journal runtime message call value: {:?}", value);
                             call.result = Some(EntryResult::Success(value));
                         }
                         completion_message::Result::Failure(failure) => {
@@ -507,8 +507,8 @@ impl Journal {
                     Some(result) => match result {
                         completion_message::Result::Empty(_) => {}
                         completion_message::Result::Value(value) => {
-                            info!("{:?}", value);
-                            info!("Journal runtime message awakeable value: {:?}", value);
+                            debug!("{:?}", value);
+                            debug!("Journal runtime message awakeable value: {:?}", value);
                             awakeable.result = Some(EntryResult::Success(value));
                         }
                         completion_message::Result::Failure(failure) => {
@@ -521,7 +521,7 @@ impl Journal {
                 _ => {}
             }
             if let Some(mut waker) = journal_entry.waker.take() {
-                info!("Journal runtime waking up: {:?}", journal_entry.entry);
+                debug!("Journal runtime waking up: {:?}", journal_entry.entry);
                 waker.wake();
             }
         } else {
