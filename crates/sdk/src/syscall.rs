@@ -35,10 +35,10 @@ macro_rules! future_impl {
             }
 
             fn set_span(&self, state_machine: MutexGuard<'_, StateMachine>) {
-                if !state_machine.is_replaying() {
-                    tracing::Span::current().record("replay", false);
-                } else {
+                if state_machine.is_replaying() {
                     tracing::Span::current().record("replay", true);
+                } else {
+                    tracing::Span::current().record("replay", false);
                 }
             }
         }
