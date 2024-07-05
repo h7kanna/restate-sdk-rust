@@ -10,6 +10,7 @@ mod bundle {
     use restate::{async_recursion, Context, ContextBase};
     use serde::{Deserialize, Serialize};
     use std::{future, time::Duration};
+    use tracing::info;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct ExecInput {
@@ -30,12 +31,12 @@ mod bundle {
         #[restate::handler]
         pub async fn service(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             ctx.run(move || async move {
-                println!("Service: service: sleeping");
+                info!("Service: service: sleeping");
                 tokio::time::sleep(Duration::from_secs(10)).await;
                 Ok(())
             })
             .await?;
-            println!("Service: run: pending {:?}", name);
+            info!("Service: run: pending {:?}", name);
             ctx.run(Self::pending).await?;
             Ok(ExecOutput { test: name.test })
         }

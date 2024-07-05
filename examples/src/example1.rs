@@ -1,4 +1,5 @@
 use restate::endpoint::endpoint;
+use tracing::info;
 /*
 use restate::{
     empty, endpoint::endpoint, full, http2_handler, BodyExt, BoxBody, Bytes, Http2Receiver, Incoming, Method,
@@ -25,7 +26,7 @@ trait ServiceHandler {
 }
 
 fn endpoint_fn<T: ServiceHandler>(service: T) {
-    println!("handlers {:?}", service.handlers());
+    info!("handlers {:?}", service.handlers());
 }
 
 #[restate::bundle]

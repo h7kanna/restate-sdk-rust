@@ -10,6 +10,7 @@ use syn::{
     parse_quote, token::Brace, Attribute, Block, Expr, FnArg, ImplItem, ImplItemFn, Item, ItemFn, ItemImpl,
     Lit, Pat, Receiver, Stmt, Type,
 };
+use tracing::debug;
 
 const SERVICE_ATTRIBUTE: &str = "restate::service";
 const OBJECT_ATTRIBUTE: &str = "restate::object";
@@ -19,7 +20,7 @@ const WORKFLOW_ATTRIBUTE: &str = "restate::workflow";
 #[cfg(not(test))]
 pub fn main(args: TokenStream, item: TokenStream) -> TokenStream {
     let main = syn::parse_macro_input!(item as ItemFn);
-    println!("Main name: {:?}", main.sig.ident.to_string());
+    debug!("Main name: {:?}", main.sig.ident.to_string());
     let body = main.block;
     quote!(
         #[tokio::main]
@@ -37,7 +38,7 @@ pub fn bundle(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut services = vec![];
     match &endpoint {
         Item::Mod(module) => {
-            println!("Module path {:?}", module.ident.to_string());
+            debug!("Module path {:?}", module.ident.to_string());
             if let Some((_, items)) = &module.content {
                 for item in items {
                     match item {
@@ -183,7 +184,7 @@ fn create_service_manifest(service_type: ServiceType, item: &ItemImpl) -> Servic
                         }
                     };
                     service.ty = ServiceType::try_from(value).unwrap();
-                    println!("Found property {:?}", service);
+                    debug!("Found property {:?}", service);
                 }
             }
             ImplItem::Fn(handler) => {
@@ -238,7 +239,7 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
             ImplItem::Fn(handler) => {
                 if handler.sig.asyncness.is_some() {
                     if find_attribute(&["restate::handler"], &handler.attrs).is_some() {
-                        println!("Handler {}", handler.sig.ident.to_string());
+                        debug!("Handler {}", handler.sig.ident.to_string());
                         let method = create_service_client_fn(service_name.clone(), handler);
                         methods.push(method);
                     }
@@ -307,7 +308,7 @@ pub fn object(args: TokenStream, item: TokenStream) -> TokenStream {
             ImplItem::Fn(handler) => {
                 if handler.sig.asyncness.is_some() {
                     if find_attribute(&["restate::handler"], &handler.attrs).is_some() {
-                        println!("Handler {}", handler.sig.ident.to_string());
+                        debug!("Handler {}", handler.sig.ident.to_string());
                         let method = create_service_client_fn(service_name.clone(), handler);
                         methods.push(method);
                     }
@@ -376,7 +377,7 @@ pub fn workflow(args: TokenStream, item: TokenStream) -> TokenStream {
             ImplItem::Fn(handler) => {
                 if handler.sig.asyncness.is_some() {
                     if find_attribute(&["restate::handler"], &handler.attrs).is_some() {
-                        println!("Handler {}", handler.sig.ident.to_string());
+                        debug!("Handler {}", handler.sig.ident.to_string());
                         let method = create_service_client_fn(service_name.clone(), handler);
                         methods.push(method);
                     }

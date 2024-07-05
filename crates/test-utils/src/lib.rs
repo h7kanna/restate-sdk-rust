@@ -219,8 +219,6 @@ impl TestRestateServer {
 
     pub async fn journal_to_protocol(&self, invocation_id: String) -> History {
         let journal = self.query_journal(invocation_id.clone()).await;
-        //println!("{:?}", journal);
-
         let output_file = true;
         let json = serde_json::to_string(&journal).unwrap();
         if output_file {
@@ -262,7 +260,6 @@ impl TestRestateServer {
             false,
             vec![],
         );
-        //println!("{:?}", start_message);
         journal.push_front((MessageType::Start, start_message));
         journal
     }
