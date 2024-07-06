@@ -37,7 +37,6 @@ pub async fn handle_invocation<Context, Func, Input, Output>(
                 if let Some(message) = message {
                     debug!("Messages received {:?}", message);
                     if builder.handle_message(message) {
-                        debug!("Messages completed");
                         break;
                     }
                 }
@@ -45,8 +44,8 @@ pub async fn handle_invocation<Context, Func, Input, Output>(
         }
     }
     let invocation = builder.build();
-
-    debug!("Invocation started {:?}", invocation.debug_id);
+    debug!("Invocation build completed {:?}", invocation.debug_id);
+    debug!("Invocation machine started {:?}", invocation.debug_id);
     let invocation_id = invocation.id.clone();
     // step 2: create the state machine
     let (state_machine, mut suspension_rx) = if test {

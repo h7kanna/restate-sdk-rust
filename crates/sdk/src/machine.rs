@@ -14,7 +14,7 @@ use restate_sdk_types::{
     endpoint_manifest::ProtocolMode,
     journal::{
         raw::{PlainEntryHeader, PlainRawEntry},
-        Entry, EntryResult, GetStateKeysResult,
+        Entry, EntryResult, GetStateKeysResult, OutputEntry,
     },
     service_protocol,
     service_protocol::{
@@ -113,21 +113,15 @@ impl StateMachine {
                 match result {
                     Ok(result) => {
                         let result = serde_json::to_string(&result).unwrap();
-                        let output: ProtocolMessage = PlainRawEntry::new(
-                            PlainEntryHeader::Output,
-                            service_protocol::OutputEntryMessage {
-                                name: "".to_string(),
-                                result: Some(service_protocol::output_entry_message::Result::Value(
-                                    result.into(),
-                                )),
-                            }
-                            .encode_to_vec()
-                            .into(),
-                        )
-                        .into();
                         let mut state_machine = state_machine.lock();
-                        debug!("Invocation output:  {:?}", output);
-                        state_machine.send(output);
+                        let output_entry_index = state_machine.journal.get_next_user_code_journal_index();
+                         state_machine.handle_user_code_message(
+                            output_entry_index,
+                            Entry::Output(OutputEntry {
+                                result: EntryResult::Success(result.clone().into()),
+                            }),
+                            None,
+                        );
                         debug!("Invocation end");
                         state_machine.send(ProtocolMessage::End(service_protocol::EndMessage {}));
                     }
@@ -166,7 +160,42 @@ impl StateMachine {
         if result.is_none() {
             match &message {
                 Entry::Input(_) => {}
-                Entry::Output(_) => {}
+                Entry::Output(output) => {
+                    if !self.journal.is_output_replayed() {
+                        debug!(
+                            "Result does not exist for entry index {:?}, sending output message",
+                            entry_index
+                        );
+                        self.send(
+                            PlainRawEntry::new(
+                                PlainEntryHeader::Output,
+                                service_protocol::OutputEntryMessage {
+                                    name: "".to_string(),
+                                    result: match &output.result {
+                                        EntryResult::Success(success) => {
+                                            Some(service_protocol::output_entry_message::Result::Value(
+                                                success.clone(),
+                                            ))
+                                        }
+                                        EntryResult::Failure(code, message) => {
+                                            Some(service_protocol::output_entry_message::Result::Failure(
+                                                Failure {
+                                                    code: (*code).into(),
+                                                    message: message.clone().to_string(),
+                                                },
+                                            ))
+                                        }
+                                    },
+                                }
+                                .encode_to_vec()
+                                .into(),
+                            )
+                            .into(),
+                        );
+                    } else {
+                        debug!("Output replayed and matched output message from journal");
+                    }
+                }
                 Entry::GetState(get_state) => {
                     debug!(
                         "Result does not exist for entry index {:?}, sending get state message",
@@ -492,12 +521,17 @@ impl StateMachine {
 
     fn send(&mut self, message: ProtocolMessage) {
         // If in processing or no use calls are performed at all
-        if self.journal.is_processing() || self.journal.get_user_code_journal_index() == 0 {
+        if !self.journal.is_replaying() || self.journal.get_user_code_journal_index() == 0 {
             if let Some(ref connection) = self.connection {
                 connection.send(message);
             } else if let Some(ref abort) = self.abort {
                 abort.send(message);
             }
+        } else {
+            debug!(
+                "Journal state: {:?}, Skip sending message",
+                self.journal.get_state()
+            );
         }
     }
 
@@ -550,7 +584,6 @@ impl RestateStreamConsumer for MutexGuard<'_, StateMachine> {
 
 #[cfg(test)]
 mod tests {
-
     #[test]
     fn test_state_machine() {}
 }

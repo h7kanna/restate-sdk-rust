@@ -154,7 +154,9 @@ impl RestateStreamConsumer for InvocationBuilder {
         } else {
             self.state = State::ExpectingFurtherReplay;
         }
-        debug!("Invocation builder state: {:?}", self.state);
+        if self.state.eq(&State::Complete) {
+            debug!("Invocation builder state: {:?}", self.state);
+        }
         self.is_complete()
     }
 }

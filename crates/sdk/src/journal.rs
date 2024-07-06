@@ -16,7 +16,7 @@ use restate_sdk_types::{
 use std::{cmp::PartialEq, task::Waker};
 use tracing::debug;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum NewExecutionState {
     REPLAYING,
     PROCESSING,
@@ -121,15 +121,17 @@ impl Journal {
             self.increment_user_code_index();
             match self.state {
                 NewExecutionState::REPLAYING => {
-                    if let Some((_, replay_entry)) = self
+                    let replay_entry = self
                         .invocation
                         .replay_entries
-                        .remove(&self.user_code_journal_index)
-                    {
+                        .get(&self.user_code_journal_index)
+                        .map(|entry| entry.clone());
+                    if let Some(replay_entry) = replay_entry {
                         let journal_entry = JournalEntry { entry, waker };
                         return self.handle_replay(entry_index, replay_entry, journal_entry);
                     } else {
                         // Illegal
+                        debug!("Illegal state: no replay message was received for the entry at journal index: {}", self.user_code_journal_index )
                     }
                 }
                 NewExecutionState::PROCESSING => self.handle_processing(entry_index, entry, waker),
@@ -258,6 +260,9 @@ impl Journal {
                         CompletionResult::Success(bytes) => Some(bytes),
                         CompletionResult::Failure(_, _) => None,
                     };
+                } else {
+                    let JournalEntry { entry, waker } = entry;
+                    self.append_entry(entry, waker.unwrap())
                 }
             }
             Entry::SetState(_) => return Some(Bytes::new()),
@@ -268,6 +273,9 @@ impl Journal {
                         GetStateKeysResult::Result(value) => Some(Bytes::new()),
                         GetStateKeysResult::Failure(_, _) => Some(Bytes::new()),
                     };
+                } else {
+                    let JournalEntry { entry, waker } = entry;
+                    self.append_entry(entry, waker.unwrap())
                 }
             }
             Entry::ClearAllState => return Some(Bytes::new()),
@@ -277,6 +285,9 @@ impl Journal {
                         EntryResult::Success(value) => return Some(value),
                         EntryResult::Failure(code, value) => {}
                     }
+                } else {
+                    let JournalEntry { entry, waker } = entry;
+                    self.append_entry(entry, waker.unwrap())
                 }
             }
             Entry::PeekPromise(peek_promise) => {
@@ -290,6 +301,9 @@ impl Journal {
                         }
                         CompletionResult::Failure(_, _) => {}
                     }
+                } else {
+                    let JournalEntry { entry, waker } = entry;
+                    self.append_entry(entry, waker.unwrap())
                 }
             }
             Entry::CompletePromise(complete_promise) => match complete_promise.completion {
@@ -304,6 +318,9 @@ impl Journal {
                         }
                         SleepResult::Failure(_, _) => {}
                     }
+                } else {
+                    let JournalEntry { entry, waker } = entry;
+                    self.append_entry(entry, waker.unwrap())
                 }
             }
             Entry::Call(call) => {
@@ -312,6 +329,9 @@ impl Journal {
                         EntryResult::Success(value) => return Some(value),
                         EntryResult::Failure(code, value) => {}
                     }
+                } else {
+                    let JournalEntry { entry, waker } = entry;
+                    self.append_entry(entry, waker.unwrap())
                 }
             }
             Entry::OneWayCall(_) => {}
@@ -321,6 +341,9 @@ impl Journal {
                         EntryResult::Success(value) => return Some(value),
                         EntryResult::Failure(code, value) => {}
                     }
+                } else {
+                    let JournalEntry { entry, waker } = entry;
+                    self.append_entry(entry, waker.unwrap())
                 }
             }
             Entry::CompleteAwakeable(_) => {}
@@ -385,6 +408,7 @@ impl Journal {
 
     #[tracing::instrument(parent = None, skip(self, message))]
     pub fn handle_runtime_completion_message(&self, message: CompletionMessage) {
+        debug!("Handling runtime message entry: {:?}", message.entry_index);
         let journal_entry = self.pending_entries.get_mut(&message.entry_index);
         if let Some(mut journal_entry) = journal_entry {
             debug!("Journal runtime message entry: {:?}", journal_entry);
@@ -525,6 +549,10 @@ impl Journal {
                 waker.wake();
             }
         } else {
+            debug!(
+                "Journal runtime message entry does not exist: {:?}",
+                message.entry_index
+            );
             return;
         }
     }
@@ -540,7 +568,12 @@ impl Journal {
 
     fn handle_output_message(&mut self, entry_index: u32) {
         self.transition_state(NewExecutionState::CLOSED);
-        self.pending_entries.remove(&0);
+        //self.pending_entries.remove(&entry_index);
+    }
+
+    fn handle_suspension_message(&mut self, entry_index: u32) {
+        self.transition_state(NewExecutionState::CLOSED);
+        //self.pending_entries.remove(&entry_index);
     }
 
     pub fn append_entry(&self, entry: Entry, waker: Waker) {
@@ -567,6 +600,10 @@ impl Journal {
         return self.state == NewExecutionState::REPLAYING;
     }
 
+    pub fn get_state(&self) -> NewExecutionState {
+        self.state.clone()
+    }
+
     pub fn get_user_code_journal_index(&self) -> u32 {
         return self.user_code_journal_index;
     }
@@ -577,6 +614,18 @@ impl Journal {
 
     pub fn close(&mut self) {
         self.transition_state(NewExecutionState::CLOSED);
+    }
+
+    pub fn is_output_replayed(&self) -> bool {
+        let last_replay_entry_index = self.invocation.number_entries_to_replay - 1;
+        if let Some(last_entry) = self.invocation.replay_entries.get(&last_replay_entry_index) {
+            match last_entry.value() {
+                Entry::Output(_) => true,
+                _ => false,
+            }
+        } else {
+            false
+        }
     }
 }
 
