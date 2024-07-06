@@ -7,6 +7,7 @@ use crate::{
     store::LocalStateStore,
 };
 use bytes::Bytes;
+use futures::channel::oneshot;
 use parking_lot::{Mutex, MutexGuard};
 use prost::Message;
 use restate_sdk_core::ServiceHandler;
@@ -39,7 +40,8 @@ pub(crate) struct StateMachine {
     logger: ReplayFilter,
     suspension_tx: UnboundedSender<String>,
     connection: Option<Box<dyn MessageSender>>,
-    abort: Option<Box<dyn MessageSender>>,
+    abort_tx: Option<oneshot::Sender<bool>>,
+    abort_on_replay: bool,
     protocol_mode: ProtocolMode,
     input: Option<Bytes>,
     span_replay_flag: bool,
@@ -47,7 +49,7 @@ pub(crate) struct StateMachine {
 
 impl StateMachine {
     pub fn new(
-        abort: Option<Box<dyn MessageSender>>,
+        abort_on_replay: bool,
         connection: Option<Box<dyn MessageSender>>,
         mut invocation: Invocation,
     ) -> (Self, UnboundedReceiver<String>) {
@@ -63,7 +65,8 @@ impl StateMachine {
                 logger: ReplayFilter::new(),
                 suspension_tx,
                 connection,
-                abort,
+                abort_tx: None,
+                abort_on_replay,
                 protocol_mode: ProtocolMode::BidiStream,
                 input,
                 span_replay_flag: true,
@@ -74,6 +77,15 @@ impl StateMachine {
 
     pub fn local_state_store(&mut self) -> &mut LocalStateStore {
         &mut self.local_state_store
+    }
+
+    pub fn abort_on_replay(&mut self) {
+        if self.abort_on_replay {
+            let abort_tx = self.abort_tx.take();
+            if let Some(abort_tx) = abort_tx {
+                abort_tx.send(true).unwrap();
+            }
+        }
     }
 
     pub async fn invoke<Context, Func, Input, Output>(
@@ -103,11 +115,16 @@ impl StateMachine {
             "replay" = field::Empty,
         );
         let request = Request { id };
+        let (abort_tx, abort_rx) = oneshot::channel::<bool>();
+        state_machine.lock().abort_tx = Some(abort_tx);
         let ctx = Context::new(request, state_machine.clone());
         let handle = handler(ctx, input).instrument(span);
         tokio::select! {
             _ = token.cancelled() => {
                debug!("State machine cancelled");
+            }
+            _ = abort_rx => {
+                debug!("Invocation aborted");
             }
             result = handle => {
                 match result {
@@ -139,9 +156,9 @@ impl StateMachine {
                         state_machine.send(ProtocolMessage::End(service_protocol::EndMessage {}));
                     }
                 };
+                debug!("Invocation done");
             }
         }
-        debug!("Invocation done");
     }
 
     #[tracing::instrument(parent = None, skip(self, waker, message))]
@@ -524,8 +541,6 @@ impl StateMachine {
         if !self.journal.is_replaying() || self.journal.get_user_code_journal_index() == 0 {
             if let Some(ref connection) = self.connection {
                 connection.send(message);
-            } else if let Some(ref abort) = self.abort {
-                abort.send(message);
             }
         } else {
             debug!(

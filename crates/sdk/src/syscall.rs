@@ -64,6 +64,7 @@ impl Future for GetStateFuture {
             Poll::Ready(result)
         } else {
             debug!("GetState Result pending for entry: {}", self.entry_index);
+            state_machine.abort_on_replay();
             Poll::Pending
         }
     }
@@ -93,6 +94,7 @@ impl Future for GetStateKeysFuture {
             Poll::Ready(result.keys)
         } else {
             debug!("GetStateKeys Result pending for entry: {}", self.entry_index);
+            state_machine.abort_on_replay();
             Poll::Pending
         }
     }
@@ -196,6 +198,7 @@ impl Future for AwakeableFuture {
             Poll::Ready(result)
         } else {
             debug!("Run Result pending for entry: {}", self.entry_index);
+            state_machine.abort_on_replay();
             Poll::Pending
         }
     }
@@ -224,6 +227,7 @@ impl Future for SleepFuture {
             Poll::Ready(result)
         } else {
             debug!("Sleep Result pending for entry: {}", self.entry_index);
+            state_machine.abort_on_replay();
             Poll::Pending
         }
     }
@@ -252,6 +256,7 @@ impl Future for RunFuture {
             Poll::Ready(result)
         } else {
             debug!("Run Result pending for entry: {}", self.entry_index);
+            state_machine.abort_on_replay();
             Poll::Pending
         }
     }
@@ -299,6 +304,7 @@ impl<T> Future for CallServiceFuture<T> {
             Poll::Ready(result)
         } else {
             debug!("Call Result pending for entry: {}", self.entry_index);
+            state_machine.abort_on_replay();
             Poll::Pending
         }
     }
@@ -327,6 +333,7 @@ impl Future for GetPromiseFuture {
             Poll::Ready(result)
         } else {
             debug!("GetPromise Result pending for entry: {}", self.entry_index);
+            state_machine.abort_on_replay();
             Poll::Pending
         }
     }
@@ -359,6 +366,7 @@ impl Future for PeekPromiseFuture {
             }
         } else {
             debug!("PeekPromise Result pending for entry: {}", self.entry_index);
+            state_machine.abort_on_replay();
             Poll::Pending
         }
     }
@@ -387,6 +395,7 @@ impl Future for CompletePromiseFuture {
             Poll::Ready(())
         } else {
             debug!("CompletePromise Result pending for entry: {}", self.entry_index);
+            state_machine.abort_on_replay();
             Poll::Pending
         }
     }

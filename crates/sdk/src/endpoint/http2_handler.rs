@@ -131,7 +131,7 @@ mod tests {
 
                 }
             }
-            info!("Invocation done done");
+            info!("Invocation done");
         });
 
         tokio::spawn(async move {

@@ -48,12 +48,7 @@ pub async fn handle_invocation<Context, Func, Input, Output>(
     debug!("Invocation machine started {:?}", invocation.debug_id);
     let invocation_id = invocation.id.clone();
     // step 2: create the state machine
-    let (state_machine, mut suspension_rx) = if test {
-        StateMachine::new(Some(Box::new(sender)), None, invocation)
-    } else {
-        StateMachine::new(None, Some(Box::new(sender)), invocation)
-    };
-
+    let (state_machine, mut suspension_rx) = StateMachine::new(test, Some(Box::new(sender)), invocation);
     let state_machine = Arc::new(Mutex::new(state_machine));
     let message_consumer = state_machine.clone();
     let suspension_consumer = state_machine.clone();
