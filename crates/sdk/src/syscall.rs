@@ -275,12 +275,12 @@ impl<T> CallServiceFuture<T> {
         }
     }
 
-    fn set_span(&self, state_machine: MutexGuard<'_, StateMachine>) {
-        if !state_machine.is_replaying() {
-            tracing::Span::current().record("replay", false);
-        } else {
-            tracing::Span::current().record("replay", true);
-        }
+    pub fn entry(&self) -> u32 {
+        self.entry_index
+    }
+
+    fn set_span(&self, mut state_machine: MutexGuard<'_, StateMachine>) {
+        state_machine.set_span()
     }
 }
 

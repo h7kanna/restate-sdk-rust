@@ -89,8 +89,8 @@ impl Journal {
             }
         }
         debug!(
-            "Journal state: {:?}, Journal user index: {}",
-            self.state, self.user_code_journal_index
+            "Invocation: {:?} Journal state: {:?}, Journal user index: {}",
+            self.invocation.debug_id, self.state, self.user_code_journal_index
         );
     }
 
@@ -626,6 +626,10 @@ impl Journal {
         } else {
             false
         }
+    }
+
+    pub fn is_next_entry_replaying(&self) -> bool {
+        self.user_code_journal_index + 1 < self.invocation.number_entries_to_replay
     }
 }
 

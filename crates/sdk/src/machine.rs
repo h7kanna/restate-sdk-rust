@@ -42,7 +42,7 @@ pub(crate) struct StateMachine {
     abort: Option<Box<dyn MessageSender>>,
     protocol_mode: ProtocolMode,
     input: Option<Bytes>,
-    span_replaying: bool,
+    span_replay_flag: bool,
 }
 
 impl StateMachine {
@@ -66,7 +66,7 @@ impl StateMachine {
                 abort,
                 protocol_mode: ProtocolMode::BidiStream,
                 input,
-                span_replaying: true,
+                span_replay_flag: true,
             },
             suspension_rx,
         )
@@ -542,14 +542,22 @@ impl StateMachine {
     pub fn suspend(&self) {}
 
     pub fn set_span(&mut self) {
-        if self.span_replaying {
-            if self.is_replaying() {
-                tracing::Span::current().record("replay", true);
-                self.span_replaying = true;
-            } else {
-                tracing::Span::current().record("replay", false);
-                self.span_replaying = false;
-            }
+        /*
+        println!(
+            "{:?} Span flag:{}, Replaying: {}, Next Replaying: {}",
+            self.journal.invocation().debug_id,
+            self.span_replay_flag,
+            self.journal.is_replaying(),
+            self.journal.is_next_entry_replaying()
+        );
+         */
+        if self.span_replay_flag == true && self.journal.is_replaying() {
+            tracing::Span::current().record("replay", true);
+            self.span_replay_flag = false;
+        }
+        if self.span_replay_flag == false && !self.journal.is_next_entry_replaying() {
+            tracing::Span::current().record("replay", false);
+            self.span_replay_flag = true;
         }
     }
 

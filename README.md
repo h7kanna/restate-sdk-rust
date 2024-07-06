@@ -52,6 +52,8 @@ curl -v localhost:8080/WorkflowService/workflow1/signal -H 'content-type: applic
 
 curl -v localhost:8080/WorkflowService/workflow1/signal -H 'content-type: application/json' -d '{"test": "await_user2"}'
 
+curl -v localhost:8080/WorkflowService/workflow1/signal -H 'content-type: application/json' -d '{"test": "await_user3"}'
+
 curl -v localhost:8080/restate/workflow/WorkflowService/workflow1/attach
 
 curl -v localhost:8080/restate/workflow/WorkflowService/workflow1/output
