@@ -7,18 +7,6 @@ rust-version = { workspace = true }
 
 [[example]]
 doc = false
-name = "example"
-path = "src/example.rs"
-required-features = []
-
-[[example]]
-doc = false
-name = "example0"
-path = "src/example0.rs"
-required-features = []
-
-[[example]]
-doc = false
 name = "example1"
 path = "src/example1.rs"
 required-features = []
@@ -31,8 +19,20 @@ required-features = []
 
 [[example]]
 doc = false
+name = "example3"
+path = "src/example3.rs"
+required-features = []
+
+[[example]]
+doc = false
 name = "example4"
 path = "src/example4.rs"
+required-features = []
+
+[[example]]
+doc = false
+name = "example5"
+path = "src/example5.rs"
 required-features = []
 
 [[example]]

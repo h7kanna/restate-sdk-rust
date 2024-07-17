@@ -1,7 +1,16 @@
 use restate::endpoint;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
 #[restate::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // initialize tracing
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "example5=debug,restate_sdk=info,tower_http=debug".into());
+    let replay_filter = restate::logger::ReplayFilter::new();
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(tracing_subscriber::fmt::layer().with_filter(replay_filter))
+        .init();
     endpoint(service).await
 }
 
