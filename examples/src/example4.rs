@@ -1,8 +1,8 @@
-use restate::endpoint;
+use restate::{endpoint, RestateEndpointOptions};
 
 #[restate::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    endpoint(service).await
+    endpoint(RestateEndpointOptions::default(), service).await
 }
 
 #[restate::bundle]

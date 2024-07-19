@@ -1,9 +1,9 @@
-use restate::endpoint;
+use restate::{endpoint, RestateEndpointOptions};
 use tracing::info;
 
 #[restate::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    endpoint(service).await
+    endpoint(RestateEndpointOptions::default(), service).await
 }
 
 trait ServiceHandler {
@@ -17,7 +17,7 @@ fn endpoint_fn<T: ServiceHandler>(service: T) {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{ContextBase,Context};
+    use restate::{Context, ContextBase};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]

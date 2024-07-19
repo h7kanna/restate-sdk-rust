@@ -1,4 +1,4 @@
-use restate::endpoint::endpoint;
+use restate::{endpoint, RestateEndpointOptions};
 use tracing::info;
 /*
 use restate::{
@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     //endpoint_fn(SimpleService);
     //endpoint_fn(Service);
-    endpoint(service).await
+    endpoint(RestateEndpointOptions::default(), service).await
 }
 
 trait ServiceHandler {

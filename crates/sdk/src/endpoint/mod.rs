@@ -12,18 +12,34 @@ pub mod handler;
 pub mod http2_handler;
 mod service;
 
+// TODO: builder
+pub struct RestateEndpointOptions {
+    pub listen_address: String,
+    pub listen_port: u16,
+}
+
+impl Default for RestateEndpointOptions {
+    fn default() -> Self {
+        Self {
+            listen_address: "localhost".to_string(),
+            listen_port: 3000,
+        }
+    }
+}
+
 pub struct RestateEndpoint {}
 
 impl RestateEndpoint {
     pub async fn listen<H, F>(
         self,
+        options: RestateEndpointOptions,
         handler: H,
     ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>
     where
         H: Fn(Request<hyper::body::Incoming>) -> F + Send + Clone + 'static,
         F: Future<Output = Result<Response<BoxBody<Bytes, anyhow::Error>>>> + Send + 'static,
     {
-        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+        let addr = SocketAddr::from(([127, 0, 0, 1], options.listen_port));
 
         let listener = TcpListener::bind(addr).await?;
         info!("Listening on http://{}", addr);
@@ -44,11 +60,14 @@ impl RestateEndpoint {
     }
 }
 
-pub async fn endpoint<H, F>(handler: H) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>
+pub async fn endpoint<H, F>(
+    options: RestateEndpointOptions,
+    handler: H,
+) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>
 where
     H: Fn(Request<hyper::body::Incoming>) -> F + Send + Clone + 'static,
     F: Future<Output = Result<Response<BoxBody<Bytes, anyhow::Error>>>> + Send + 'static,
 {
     let endpoint = RestateEndpoint {};
-    endpoint.listen(handler).await
+    endpoint.listen(options, handler).await
 }
