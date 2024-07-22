@@ -29,7 +29,7 @@ http-body-util = { workspace = true }
 hyper = { version = "1", features = ["server"] }
 hyper-util = { version = "0.1", features = ["http1", "http2", "server", "tokio"] }
 itertools = { workspace = true }
-opentelemetry = { version = "0.23.0", features = ["trace"] }
+opentelemetry = { version = "0.24.0", features = ["trace"] }
 parking_lot = { version = "0.12" }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }
