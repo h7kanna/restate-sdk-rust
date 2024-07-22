@@ -4,6 +4,7 @@ use typify::{TypeSpace, TypeSpaceSettings};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=./service-protocol/dev/restate/service/protocol.proto");
+    println!("cargo:rerun-if-changed=./proto/dev/restate/service/rust.proto");
     prost_build::Config::new()
         .bytes(["."])
         .protoc_arg("--experimental_allow_proto3_optional")
@@ -15,8 +16,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &[
                 "service-protocol/dev/restate/service/protocol.proto",
                 "service-protocol/dev/restate/service/discovery.proto",
+                "proto/dev/restate/service/rust.proto",
             ],
-            &["service-protocol"],
+            &["service-protocol", "proto"],
         )?;
 
     println!("cargo:rerun-if-changed=./service-protocol/endpoint_manifest_schema.json");
