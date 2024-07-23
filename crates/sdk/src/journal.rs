@@ -104,141 +104,38 @@ impl Journal {
     }
 
     #[tracing::instrument(skip(self, entry, waker))]
-    pub fn handle_user_code_message(
-        &mut self,
-        entry_index: u32,
-        entry: Entry,
-        waker: Option<Waker>,
-    ) -> Option<Bytes> {
+    pub fn handle_user_code_message(&mut self, entry: Entry, waker: Option<Waker>) -> (u32, Option<Bytes>) {
+        self.increment_user_code_index();
+        let entry_index = self.get_user_code_journal_index();
         debug!(
-            "Handle user code entry_index: {}, journal_index: {}, state: {:?}, replay_entries: {}",
-            entry_index,
-            self.get_user_code_journal_index(),
-            self.state,
-            self.invocation.number_entries_to_replay
+            "Handle user code entry_index: {}, state: {:?}, replay_entries: {}",
+            entry_index, self.state, self.invocation.number_entries_to_replay
         );
-        if entry_index != self.get_user_code_journal_index() {
-            self.increment_user_code_index();
-            match self.state {
-                NewExecutionState::REPLAYING => {
-                    let replay_entry = self
-                        .invocation
-                        .replay_entries
-                        .get(&self.user_code_journal_index)
-                        .map(|entry| entry.clone());
-                    if let Some(replay_entry) = replay_entry {
-                        let journal_entry = JournalEntry { entry, waker };
-                        return self.handle_replay(entry_index, replay_entry, journal_entry);
-                    } else {
-                        // Illegal
-                        debug!("Illegal state: no replay message was received for the entry at journal index: {}", self.user_code_journal_index )
-                    }
-                }
-                NewExecutionState::PROCESSING => self.handle_processing(entry_index, entry, waker),
-                NewExecutionState::CLOSED => {}
-            }
-        } else {
-            if let Some((_, pending)) = self.pending_entries.remove(&entry_index) {
-                match &pending.entry {
-                    Entry::Input(_) => {}
-                    Entry::Output(_) => {}
-                    Entry::GetState(get_state) => {
-                        if let Some(result) = get_state.value.as_ref() {
-                            return match result {
-                                CompletionResult::Empty => Some(Bytes::new()),
-                                CompletionResult::Success(bytes) => Some(bytes.clone()),
-                                CompletionResult::Failure(_, _) => None,
-                            };
-                        }
-                    }
-                    Entry::SetState(_) => return Some(Bytes::new()),
-                    Entry::ClearState(_) => return Some(Bytes::new()),
-                    Entry::GetStateKeys(get_state_keys) => {
-                        if let Some(result) = get_state_keys.value.as_ref() {
-                            return match result {
-                                GetStateKeysResult::Result(value) => Some(Bytes::new()),
-                                GetStateKeysResult::Failure(_, _) => Some(Bytes::new()),
-                            };
-                        }
-                    }
-                    Entry::ClearAllState => return Some(Bytes::new()),
-                    Entry::GetPromise(get) => {
-                        if let Some(result) = get.value.as_ref() {
-                            match result {
-                                EntryResult::Success(success) => {
-                                    return Some(success.clone());
-                                }
-                                EntryResult::Failure(_, _) => {}
-                            }
-                        }
-                    }
-                    Entry::PeekPromise(peek) => {
-                        if let Some(result) = peek.value.as_ref() {
-                            match result {
-                                CompletionResult::Empty => {
-                                    return Some(Bytes::new());
-                                }
-                                CompletionResult::Success(success) => {
-                                    return Some(success.clone());
-                                }
-                                CompletionResult::Failure(_, _) => {}
-                            }
-                        }
-                    }
-                    Entry::CompletePromise(complete) => {
-                        if let Some(result) = complete.value.as_ref() {
-                            match result {
-                                CompleteResult::Done => {
-                                    return Some(Bytes::new());
-                                }
-                                CompleteResult::Failure(_, _) => {}
-                            }
-                        }
-                    }
-                    Entry::Sleep(sleep) => {
-                        if let Some(result) = sleep.result.as_ref() {
-                            match result {
-                                SleepResult::Fired => {
-                                    debug!("Sleep fired for entry index: {}", entry_index);
-                                    return Some(Bytes::new());
-                                }
-                                SleepResult::Failure(_, _) => {}
-                            }
-                        }
-                    }
-                    Entry::Call(call) => {
-                        if let Some(result) = call.result.as_ref() {
-                            match result {
-                                EntryResult::Success(success) => {
-                                    return Some(success.clone());
-                                }
-                                EntryResult::Failure(_, _) => {}
-                            }
-                        }
-                    }
-                    Entry::OneWayCall(_) => {}
-                    Entry::Awakeable(awakeaable) => {
-                        if let Some(result) = awakeaable.result.as_ref() {
-                            match result {
-                                EntryResult::Success(success) => {
-                                    return Some(success.clone());
-                                }
-                                EntryResult::Failure(_, _) => {}
-                            }
-                        }
-                    }
-                    Entry::CompleteAwakeable(_) => {}
-                    Entry::Run(run) => match &run.result {
-                        EntryResult::Success(value) => {
-                            return Some(value.clone());
-                        }
-                        EntryResult::Failure(_, _) => {}
-                    },
-                    Entry::Custom(_) => {}
+        match self.state {
+            NewExecutionState::REPLAYING => {
+                let replay_entry = self
+                    .invocation
+                    .replay_entries
+                    .get(&entry_index)
+                    .map(|entry| entry.clone());
+                if let Some(replay_entry) = replay_entry {
+                    let journal_entry = JournalEntry { entry, waker };
+                    return (
+                        entry_index,
+                        self.handle_replay(entry_index, replay_entry, journal_entry),
+                    );
+                } else {
+                    // Illegal
+                    debug!(
+                        "Illegal state: no replay message was received for the entry at journal index: {}",
+                        entry_index
+                    )
                 }
             }
+            NewExecutionState::PROCESSING => self.handle_processing(entry_index, entry, waker),
+            NewExecutionState::CLOSED => {}
         }
-        None
+        (entry_index, None)
     }
 
     fn handle_replay(&mut self, entry_index: u32, replay_entry: Entry, entry: JournalEntry) -> Option<Bytes> {
@@ -404,7 +301,109 @@ impl Journal {
         }
     }
 
-    fn resolve_result(&self) {}
+    #[tracing::instrument(skip(self))]
+    pub fn resolve_result(&self, entry_index: u32) -> Option<Bytes> {
+        if let Some((_, pending)) = self.pending_entries.remove(&entry_index) {
+            match &pending.entry {
+                Entry::Input(_) => {}
+                Entry::Output(_) => {}
+                Entry::GetState(get_state) => {
+                    if let Some(result) = get_state.value.as_ref() {
+                        return match result {
+                            CompletionResult::Empty => Some(Bytes::new()),
+                            CompletionResult::Success(bytes) => Some(bytes.clone()),
+                            CompletionResult::Failure(_, _) => None,
+                        };
+                    }
+                }
+                Entry::SetState(_) => return Some(Bytes::new()),
+                Entry::ClearState(_) => return Some(Bytes::new()),
+                Entry::GetStateKeys(get_state_keys) => {
+                    if let Some(result) = get_state_keys.value.as_ref() {
+                        return match result {
+                            GetStateKeysResult::Result(value) => Some(Bytes::new()),
+                            GetStateKeysResult::Failure(_, _) => Some(Bytes::new()),
+                        };
+                    }
+                }
+                Entry::ClearAllState => return Some(Bytes::new()),
+                Entry::GetPromise(get) => {
+                    if let Some(result) = get.value.as_ref() {
+                        match result {
+                            EntryResult::Success(success) => {
+                                return Some(success.clone());
+                            }
+                            EntryResult::Failure(_, _) => {}
+                        }
+                    }
+                }
+                Entry::PeekPromise(peek) => {
+                    if let Some(result) = peek.value.as_ref() {
+                        match result {
+                            CompletionResult::Empty => {
+                                return Some(Bytes::new());
+                            }
+                            CompletionResult::Success(success) => {
+                                return Some(success.clone());
+                            }
+                            CompletionResult::Failure(_, _) => {}
+                        }
+                    }
+                }
+                Entry::CompletePromise(complete) => {
+                    if let Some(result) = complete.value.as_ref() {
+                        match result {
+                            CompleteResult::Done => {
+                                return Some(Bytes::new());
+                            }
+                            CompleteResult::Failure(_, _) => {}
+                        }
+                    }
+                }
+                Entry::Sleep(sleep) => {
+                    if let Some(result) = sleep.result.as_ref() {
+                        match result {
+                            SleepResult::Fired => {
+                                debug!("Sleep fired for entry index: {}", entry_index);
+                                return Some(Bytes::new());
+                            }
+                            SleepResult::Failure(_, _) => {}
+                        }
+                    }
+                }
+                Entry::Call(call) => {
+                    if let Some(result) = call.result.as_ref() {
+                        match result {
+                            EntryResult::Success(success) => {
+                                return Some(success.clone());
+                            }
+                            EntryResult::Failure(_, _) => {}
+                        }
+                    }
+                }
+                Entry::OneWayCall(_) => {}
+                Entry::Awakeable(awakeaable) => {
+                    if let Some(result) = awakeaable.result.as_ref() {
+                        match result {
+                            EntryResult::Success(success) => {
+                                return Some(success.clone());
+                            }
+                            EntryResult::Failure(_, _) => {}
+                        }
+                    }
+                }
+                Entry::CompleteAwakeable(_) => {}
+                Entry::Run(run) => match &run.result {
+                    EntryResult::Success(value) => {
+                        return Some(value.clone());
+                    }
+                    EntryResult::Failure(_, _) => {}
+                },
+                Entry::Custom(_) => {}
+            }
+        }
+        None
+    }
 
     #[tracing::instrument(parent = None, skip(self, message))]
     pub fn handle_runtime_completion_message(&self, message: CompletionMessage) {

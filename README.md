@@ -128,7 +128,7 @@ cargo run --example example5
 
 ```shell
 curl -v localhost:8080/Service/service -H 'content-type: application/json' -d '{"test": "test"}'
-curl -v localhost:8080/restate/awakeables/prom_1nURFYBQBEl8BkME7w9ZwfjzGAXVYpo6dAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
+curl -v localhost:8080/restate/awakeables/prom_1wmUr-jyGQfkBkN_txAKrilYfl1I57RL7AAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
 
 ```
 
@@ -153,8 +153,6 @@ cargo run --example object
 #### Invocations
 
 ```shell
-curl -v localhost:8080/ObjectService/workflow1/increment -H 'content-type: application/json' -d '{"test": "test"}'
-
 curl -v localhost:8080/ObjectService/counter/increment -H 'content-type: application/json' -d '{"value": "100"}'
 
 curl -v localhost:8080/ObjectService/counter/count -H 'content-type: application/json' -d '{"value": "100"}'
