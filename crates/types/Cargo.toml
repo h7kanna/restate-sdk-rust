@@ -17,14 +17,14 @@ prost-types = { workspace = true }
 regress = "0.9.1"
 serde ={ workspace = true }
 serde_json = { workspace = true }
-strum = "0.26.2"
-strum_macros = "0.26.2"
+strum = "0.26.3"
+strum_macros = "0.26.4"
 thiserror = { workspace = true }
 
 [build-dependencies]
 jsonptr = "0.4.7"
 prettyplease = { version = "0.2.20" }
-prost-build = "0.12.6"
+prost-build = "0.13.1"
 serde_json ={ workspace = true }
-syn = { version = "2.0.65" }
+syn = { version = "2.0.72" }
 typify = { version = "0.1.0" }

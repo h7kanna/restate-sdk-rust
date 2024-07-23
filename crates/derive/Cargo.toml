@@ -10,7 +10,7 @@ proc-macro = true
 
 [dependencies]
 convert_case = { version = "0.6.0" }
-darling =  { version = "0.20.9" }
+darling =  { version = "0.20.10" }
 proc-macro2 = { version = "1.0" }
 quote = { version = "1.0" }
 restate-sdk-core = { version = "0.1.0", path = "../core" }
