@@ -303,7 +303,8 @@ impl Journal {
 
     #[tracing::instrument(skip(self))]
     pub fn resolve_result(&self, entry_index: u32) -> Option<Bytes> {
-        if let Some((_, pending)) = self.pending_entries.remove(&entry_index) {
+        let mut resolved = true;
+        if let Some(pending) = self.pending_entries.get(&entry_index) {
             match &pending.entry {
                 Entry::Input(_) => {}
                 Entry::Output(_) => {}
@@ -314,6 +315,8 @@ impl Journal {
                             CompletionResult::Success(bytes) => Some(bytes.clone()),
                             CompletionResult::Failure(_, _) => None,
                         };
+                    } else {
+                        resolved = false;
                     }
                 }
                 Entry::SetState(_) => return Some(Bytes::new()),
@@ -324,6 +327,8 @@ impl Journal {
                             GetStateKeysResult::Result(value) => Some(Bytes::new()),
                             GetStateKeysResult::Failure(_, _) => Some(Bytes::new()),
                         };
+                    } else {
+                        resolved = false;
                     }
                 }
                 Entry::ClearAllState => return Some(Bytes::new()),
@@ -335,6 +340,8 @@ impl Journal {
                             }
                             EntryResult::Failure(_, _) => {}
                         }
+                    } else {
+                        resolved = false;
                     }
                 }
                 Entry::PeekPromise(peek) => {
@@ -348,6 +355,8 @@ impl Journal {
                             }
                             CompletionResult::Failure(_, _) => {}
                         }
+                    } else {
+                        resolved = false;
                     }
                 }
                 Entry::CompletePromise(complete) => {
@@ -358,6 +367,8 @@ impl Journal {
                             }
                             CompleteResult::Failure(_, _) => {}
                         }
+                    } else {
+                        resolved = false;
                     }
                 }
                 Entry::Sleep(sleep) => {
@@ -369,16 +380,21 @@ impl Journal {
                             }
                             SleepResult::Failure(_, _) => {}
                         }
+                    } else {
+                        resolved = false;
                     }
                 }
                 Entry::Call(call) => {
                     if let Some(result) = call.result.as_ref() {
+                        resolved = true;
                         match result {
                             EntryResult::Success(success) => {
                                 return Some(success.clone());
                             }
                             EntryResult::Failure(_, _) => {}
                         }
+                    } else {
+                        resolved = false;
                     }
                 }
                 Entry::OneWayCall(_) => {}
@@ -390,6 +406,8 @@ impl Journal {
                             }
                             EntryResult::Failure(_, _) => {}
                         }
+                    } else {
+                        resolved = false;
                     }
                 }
                 Entry::CompleteAwakeable(_) => {}
@@ -401,6 +419,10 @@ impl Journal {
                 },
                 Entry::Custom(_) => {}
             }
+        }
+        if resolved {
+            debug!("Resolving result for entry: {:?}", entry_index);
+            self.pending_entries.remove(&entry_index);
         }
         None
     }

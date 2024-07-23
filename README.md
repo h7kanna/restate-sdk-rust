@@ -128,7 +128,7 @@ cargo run --example example5
 
 ```shell
 curl -v localhost:8080/Service/service -H 'content-type: application/json' -d '{"test": "test"}'
-curl -v localhost:8080/restate/awakeables/prom_1wmUr-jyGQfkBkN_txAKrilYfl1I57RL7AAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
+curl -v localhost:8080/restate/awakeables/prom_1rWMkEHIGEbgBkOBswV1G4I9IjP9NpljTAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
 
 ```
 
@@ -183,6 +183,22 @@ curl -v localhost:8080/WorkflowService/workflow1/signal -H 'content-type: applic
 curl -v localhost:8080/restate/workflow/WorkflowService/workflow1/attach
 
 curl -v localhost:8080/restate/workflow/WorkflowService/workflow1/output
+```
+
+### Example 8
+
+Combinators: TODO
+
+#### Service
+
+```shell
+cargo run --example combinator
+ 
+```
+
+```shell
+curl -v localhost:8080/Service/select -H 'content-type: application/json' -d '{"test": "test"}'
+curl -v localhost:8080/Service/join -H 'content-type: application/json' -d '{"test": "test"}'
 ```
 
 # Introspection and troubleshooting

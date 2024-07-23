@@ -47,6 +47,12 @@ name = "workflow"
 path = "src/workflow.rs"
 required-features = []
 
+[[example]]
+doc = false
+name = "combinator"
+path = "src/combinator.rs"
+required-features = []
+
 [features]
 default = []
 
