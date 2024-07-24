@@ -7,8 +7,8 @@ members = [
     "crates/openapi",
     "crates/sdk",
     "crates/service-protocol",
-    "crates/test-utils",
     "crates/types",
+    "crates/utils",
     "examples"
 ]
 resolver = "2"

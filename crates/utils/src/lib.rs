@@ -1,4 +1,4 @@
-//! Restate Rust SDK Test Utils
+//! Restate Rust SDK Utils
 
 use arrow::{
     array::{AsArray, StructArray},
@@ -90,12 +90,12 @@ pub type HistoryMessage = (MessageType, ProtocolMessage);
 
 pub type History = VecDeque<HistoryMessage>;
 
-pub struct TestRestateServer {
+pub struct JournalClient {
     raw_client: Client,
     request_builder: RequestBuilder,
 }
 
-impl TestRestateServer {
+impl JournalClient {
     pub async fn new(admin_url: String) -> Result<Self, Error> {
         let raw_client = Client::builder()
             .user_agent(format!(
@@ -273,7 +273,7 @@ mod tests {
     async fn test_query() {
         let invocation_id = "inv_17b9KnOvqTp33vcIJVH6BKWRmxeKIdaFEJ";
         let output_file = false;
-        let test_server = TestRestateServer::new("".to_string()).await.unwrap();
-        let journal = test_server.journal_to_protocol(invocation_id.to_owned()).await;
+        let journal_client = JournalClient::new("".to_string()).await.unwrap();
+        let journal = journal_client.journal_to_protocol(invocation_id.to_owned()).await;
     }
 }
