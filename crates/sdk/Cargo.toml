@@ -31,7 +31,7 @@ hyper-util = { version = "0.1", features = ["http1", "http2", "server", "tokio"]
 itertools = { workspace = true }
 opentelemetry = { version = "0.24.0", features = ["trace"] }
 parking_lot = { version = "0.12" }
-pin-project-lite = { workspace = true }
+pin-project = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 rand = { workspace = true }

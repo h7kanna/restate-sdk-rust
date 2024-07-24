@@ -2,13 +2,13 @@
 
 use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, quote_spanned};
 use restate_sdk_types::endpoint_manifest::{
     Endpoint, Handler, HandlerName, HandlerType, ProtocolMode, Service, ServiceName, ServiceType,
 };
 use syn::{
-    parse_quote, token::Brace, Attribute, Block, Expr, FnArg, ImplItem, ImplItemFn, Item, ItemFn, ItemImpl,
-    Lit, Pat, Receiver, Stmt, Type,
+    parse_quote, parse_quote_spanned, spanned::Spanned, token::Brace, Attribute, Block, Expr, FnArg,
+    ImplItem, ImplItemFn, Item, ItemFn, ItemImpl, Lit, Pat, Receiver, ReturnType, Stmt, Type,
 };
 use tracing::debug;
 
@@ -440,6 +440,14 @@ fn create_service_client_fn(service: proc_macro2::Ident, handler: &ImplItemFn) -
     let mut client_fn = handler.clone();
     client_fn.attrs.clear();
     let mut signature = &mut client_fn.sig;
+    let return_type = match &signature.output {
+        ReturnType::Default => quote_spanned!(signature.paren_token.span => ()),
+        ReturnType::Type(_, ret) => quote!(#ret),
+    };
+    signature.output = parse_quote_spanned! {return_type.span() =>
+        -> impl ::std::future::Future<Output = #return_type> + JournalIndex + 'a
+    };
+    signature.asyncness = None;
     let first = signature.inputs.first_mut().unwrap();
     *first = FnArg::Receiver(Receiver {
         attrs: vec![],
@@ -474,7 +482,6 @@ fn create_service_client_fn(service: proc_macro2::Ident, handler: &ImplItemFn) -
                 #parameter,
                 None,
             )
-            .await
     );
 
     client_fn.block = Block {

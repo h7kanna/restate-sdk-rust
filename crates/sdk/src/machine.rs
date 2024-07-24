@@ -522,7 +522,12 @@ impl StateMachine {
                             .into(),
                         );
                     }
-                    Entry::Custom(_) => {}
+                    Entry::Custom(bytes) => {
+                        self.send(
+                            PlainRawEntry::new(PlainEntryHeader::Custom { code: 0xfc00 }, bytes.clone())
+                                .into(),
+                        );
+                    }
                 }
                 (entry_index, None)
             } else {
@@ -533,6 +538,36 @@ impl StateMachine {
                 (entry_index, result)
             }
         }
+    }
+
+    #[tracing::instrument(parent = None, skip(self, waker, message))]
+    pub fn write_combinator_order(
+        &mut self,
+        entry_index: Option<u32>,
+        message: Entry,
+        waker: Waker,
+    ) -> (u32, Option<Bytes>) {
+        if let Some(entry_index) = entry_index {
+            (entry_index, self.journal.resolve_result(entry_index))
+        } else {
+            self.journal.increment_user_code_index();
+            let entry_index = self.journal.get_user_code_journal_index();
+            self.journal.append_entry(message.clone(), waker);
+            match &message {
+                Entry::Custom(bytes) => {
+                    // TODO: Acknowledge flag
+                    self.send(
+                        PlainRawEntry::new(PlainEntryHeader::Custom { code: 0xfc00 }, bytes.clone()).into(),
+                    );
+                }
+                _ => {}
+            }
+            (entry_index, None)
+        }
+    }
+
+    pub fn get_user_code_journal_index(&self) -> u32 {
+        return self.journal.get_user_code_journal_index();
     }
 
     pub fn get_next_user_code_journal_index(&self) -> u32 {

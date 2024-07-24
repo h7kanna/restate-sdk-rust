@@ -9,9 +9,9 @@ pub use hyper::{body::Incoming, Result};
 pub use restate_sdk::{
     connection::*,
     context::{
-        CombinablePromise, Context, ContextBase, ContextData, ContextDate, ContextWorkflowShared,
-        DurablePromise, KeyValueStore, KeyValueStoreReadOnly, ObjectContext, ObjectSharedContext,
-        WorkflowContext, WorkflowSharedContext,
+        CombinableFuture, Context, ContextBase, ContextData, ContextDate, ContextWorkflowShared,
+        DurablePromise, JournalIndex, KeyValueStore, KeyValueStoreReadOnly, ObjectContext,
+        ObjectSharedContext, WorkflowContext, WorkflowSharedContext,
     },
     endpoint::{self, *},
 };

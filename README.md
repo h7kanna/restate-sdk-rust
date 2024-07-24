@@ -212,7 +212,7 @@ restate invocations cancel --yes inv_1gSomuaZJqT10TzzSN1nTOFycg8aggtPrj
 ```
 
 ```shell
-restate sql "SELECT * FROM sys_journal sj WHERE sj.id = 'inv_1i8DzzOL6iN17u6DCDTNaXM5CXyZcRABXP' ORDER BY index LIMIT 100"
+restate sql "SELECT * FROM sys_journal sj WHERE sj.id = 'inv_12fRY4rsDA5q1s8FL2KiWosO8gKLPxgPpT' ORDER BY index LIMIT 100"
 ```
 
 ```shell

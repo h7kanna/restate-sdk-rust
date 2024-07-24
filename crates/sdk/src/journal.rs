@@ -94,7 +94,7 @@ impl Journal {
         );
     }
 
-    fn increment_user_code_index(&mut self) {
+    pub fn increment_user_code_index(&mut self) {
         self.user_code_journal_index += 1;
         if self.user_code_journal_index == self.invocation.number_entries_to_replay
             && self.state == NewExecutionState::REPLAYING
@@ -250,7 +250,11 @@ impl Journal {
                 }
                 EntryResult::Failure(_, _) => {}
             },
-            Entry::Custom(_) => {}
+            Entry::Custom(_) => {
+                let JournalEntry { entry, waker } = entry;
+                self.append_entry(entry, waker.unwrap());
+                return Some(Bytes::new());
+            }
         }
         None
     }
@@ -297,7 +301,9 @@ impl Journal {
             }
             Entry::CompleteAwakeable(_) => {}
             Entry::Run(_) => {}
-            Entry::Custom(_) => {}
+            Entry::Custom(_) => {
+                self.append_entry(entry, waker.unwrap());
+            }
         }
     }
 
@@ -417,7 +423,7 @@ impl Journal {
                     }
                     EntryResult::Failure(_, _) => {}
                 },
-                Entry::Custom(_) => {}
+                Entry::Custom(_) => return Some(Bytes::new()),
             }
         }
         if resolved {

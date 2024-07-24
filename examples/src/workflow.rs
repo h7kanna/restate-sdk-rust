@@ -17,7 +17,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 #[restate::bundle]
 mod bundle {
     use restate::{
-        ContextBase, ContextWorkflowShared, DurablePromise, WorkflowContext, WorkflowSharedContext,
+        ContextBase, ContextWorkflowShared, DurablePromise, JournalIndex, WorkflowContext,
+        WorkflowSharedContext,
     };
     use serde::{Deserialize, Serialize};
     use tracing::info;

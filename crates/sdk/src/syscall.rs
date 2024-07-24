@@ -1,14 +1,18 @@
 use crate::machine::StateMachine;
 use bytes::Bytes;
+use futures_util::FutureExt;
 use parking_lot::{Mutex, MutexGuard};
+use pin_project::pin_project;
 use prost::Message;
 use restate_sdk_types::{
     journal::{
         AwakeableEntry, ClearStateEntry, CompletePromiseEntry, Entry, GetPromiseEntry, GetStateEntry,
         GetStateKeysEntry, InvokeEntry, PeekPromiseEntry, RunEntry, SetStateEntry, SleepEntry,
     },
-    service_protocol::get_state_keys_entry_message,
+    service_protocol,
+    service_protocol::{get_state_keys_entry_message, CombinatorEntryMessage},
 };
+use serde::{Deserialize, Serialize};
 use std::{
     future::Future,
     marker::PhantomData,
@@ -18,11 +22,21 @@ use std::{
         Arc,
     },
     task::{Context, Poll},
+    time::SystemTime,
 };
-use tracing::debug;
+use tracing::{debug, info};
+
+pub trait JournalIndex {
+    fn entry_index(&self) -> u32;
+}
 
 macro_rules! future_impl {
     ($future:ident, $entry:ident) => {
+        impl JournalIndex for $future {
+            fn entry_index(&self) -> u32 {
+                self.entry_index.load(Ordering::Relaxed)
+            }
+        }
         impl $future {
             pub fn new(entry: $entry, state_machine: Arc<Mutex<StateMachine>>) -> Self {
                 Self {
@@ -31,10 +45,6 @@ macro_rules! future_impl {
                     entry_index: Arc::new(AtomicU32::new(0)),
                     polled: Arc::new(AtomicBool::new(false)),
                 }
-            }
-
-            pub fn entry(&self) -> u32 {
-                self.entry_index.load(Ordering::Relaxed)
             }
 
             fn set_span(&self, mut state_machine: MutexGuard<'_, StateMachine>) {
@@ -282,6 +292,7 @@ impl Future for SleepFuture {
     type Output = Bytes;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        debug!("Sleep future polling");
         let mut state_machine = self.state_machine.lock();
         let entry_index = if self.polled.fetch_or(true, Ordering::Relaxed) {
             Some(self.entry_index.load(Ordering::Relaxed))
@@ -343,7 +354,10 @@ impl Future for RunFuture {
     }
 }
 
-pub struct CallServiceFuture<T> {
+pub struct CallServiceFuture<T>
+where
+    for<'a> T: Serialize + Deserialize<'a>,
+{
     invoke_entry: InvokeEntry,
     state_machine: Arc<Mutex<StateMachine>>,
     entry_index: Arc<AtomicU32>,
@@ -351,7 +365,10 @@ pub struct CallServiceFuture<T> {
     _ret: PhantomData<T>,
 }
 
-impl<T> CallServiceFuture<T> {
+impl<T> CallServiceFuture<T>
+where
+    for<'a> T: Serialize + Deserialize<'a>,
+{
     pub fn new(invoke_entry: InvokeEntry, state_machine: Arc<Mutex<StateMachine>>) -> Self {
         Self {
             invoke_entry,
@@ -362,19 +379,28 @@ impl<T> CallServiceFuture<T> {
         }
     }
 
-    pub fn entry(&self) -> u32 {
-        self.entry_index.load(Ordering::Relaxed)
-    }
-
     fn set_span(&self, mut state_machine: MutexGuard<'_, StateMachine>) {
         state_machine.set_span()
     }
 }
 
-impl<T> Future for CallServiceFuture<T> {
-    type Output = Bytes;
+impl<T> JournalIndex for CallServiceFuture<T>
+where
+    for<'a> T: Serialize + Deserialize<'a>,
+{
+    fn entry_index(&self) -> u32 {
+        self.entry_index.load(Ordering::Relaxed)
+    }
+}
+
+impl<T> Future for CallServiceFuture<T>
+where
+    for<'a> T: Serialize + Deserialize<'a>,
+{
+    type Output = Result<T, anyhow::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        debug!("Call future polling");
         let mut state_machine = self.state_machine.lock();
         let entry_index = if self.polled.fetch_or(true, Ordering::Relaxed) {
             Some(self.entry_index.load(Ordering::Relaxed))
@@ -389,7 +415,9 @@ impl<T> Future for CallServiceFuture<T> {
         if let Some(result) = result {
             debug!("Call Result ready for entry: {}", entry_index);
             self.set_span(state_machine);
-            Poll::Ready(result)
+
+            let result: T = serde_json::from_slice(&result).unwrap();
+            Poll::Ready(Ok(result))
         } else {
             debug!("Call Result pending for entry: {}", entry_index);
             self.entry_index.store(entry_index, Ordering::Relaxed);

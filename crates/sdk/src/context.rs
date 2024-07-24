@@ -1,4 +1,6 @@
+pub use crate::syscall::JournalIndex;
 use crate::{
+    combinators::Timeout,
     machine::StateMachine,
     protocol::AWAKEABLE_IDENTIFIER_PREFIX,
     syscall::{
@@ -78,6 +80,10 @@ macro_rules! context_data_impl {
     };
 }
 
+pub trait CombinableFuture<T: Send>: Future<Output = T> + Send {
+    fn or_timeout(&self, millis: u64) -> impl Future<Output = T> + Send;
+}
+
 pub trait ContextBase: ContextInstance {
     fn awakeable<R>(&self) -> (String, impl Future<Output = Result<R, Error>> + '_)
     where
@@ -141,34 +147,33 @@ pub trait ContextBase: ContextInstance {
         handler_name: String,
         parameter: Input,
         key: Option<String>,
-    ) -> impl Future<Output = Result<Output, anyhow::Error>> + '_
+    ) -> impl Future<Output = Result<Output, anyhow::Error>> + JournalIndex + '_
     where
         for<'a> Input: Serialize + Deserialize<'a>,
-        for<'a> Output: Serialize + Deserialize<'a>,
+        for<'a> Output: Serialize + Deserialize<'a> + 'static,
         Func: ServiceHandler<Context, Input, Output = Result<Output, anyhow::Error>> + Send + Sync + 'static,
         Context: ContextInstance,
     {
         let parameter = serde_json::to_string(&parameter).unwrap();
-        async move {
-            let bytes = CallServiceFuture::<String>::new(
-                InvokeEntry {
-                    request: InvokeRequest {
-                        service_name: service_name.into(),
-                        handler_name: handler_name.into(),
-                        parameter: parameter.into(),
-                        key: Default::default(),
-                    },
-                    result: None,
+        CallServiceFuture::<Output>::new(
+            InvokeEntry {
+                request: InvokeRequest {
+                    service_name: service_name.into(),
+                    handler_name: handler_name.into(),
+                    parameter: parameter.into(),
+                    key: Default::default(),
                 },
-                self.state_machine().clone(),
-            )
-            .await;
+                result: None,
+            },
+            self.state_machine().clone(),
+        )
+    }
 
-            // If the system call is completed, deserialize the result and return
-            let bytes = bytes.to_vec();
-            let result: Output = serde_json::from_slice(&bytes).unwrap();
-            Ok(result)
-        }
+    fn timeout<F>(&self, f: F, timeout_millis: u64) -> Timeout<F>
+    where
+        F: Future + JournalIndex,
+    {
+        Timeout::new(self.state_machine().clone(), timeout_millis, f)
     }
 }
 
@@ -296,10 +301,6 @@ impl KeyValueStoreReadOnly for ObjectContext {}
 
 impl KeyValueStore for ObjectContext {}
 
-pub trait CombinablePromise<T: Send>: Future<Output = T> + Send {
-    fn or_timeout(&self, millis: u64) -> impl Future<Output = T> + Send;
-}
-
 pub trait DurablePromise {
     fn peek<T: Send>(&self) -> impl Future<Output = Option<T>> + Send
     where
@@ -308,7 +309,7 @@ pub trait DurablePromise {
     where
         for<'a> T: Serialize + Deserialize<'a>;
     fn reject(&self, message: String) -> impl Future<Output = ()> + Send;
-    fn get<T: Send>(&self) -> impl CombinablePromise<T>
+    fn get<T: Send>(&self) -> impl CombinableFuture<T>
     where
         for<'a> T: Serialize + Deserialize<'a>;
     fn awaitable<T: Send>(&self) -> impl Future<Output = T> + Send
@@ -350,13 +351,13 @@ impl KeyValueStore for WorkflowContext {}
 
 impl ContextWorkflowShared for WorkflowContext {}
 
-pub struct CombinablePromiseImpl<T> {
+pub struct CombinableFutureImpl<T> {
     entry_index: u32,
     state_machine: Arc<Mutex<StateMachine>>,
     _ret: PhantomData<T>,
 }
 
-impl<T: Send> CombinablePromiseImpl<T> {
+impl<T: Send> CombinableFutureImpl<T> {
     pub fn new(state_machine: Arc<Mutex<StateMachine>>) -> Self {
         let entry_index = state_machine.lock().get_next_user_code_journal_index();
         Self {
@@ -367,7 +368,7 @@ impl<T: Send> CombinablePromiseImpl<T> {
     }
 }
 
-impl<T: Send> Future for CombinablePromiseImpl<T> {
+impl<T: Send> Future for CombinableFutureImpl<T> {
     type Output = T;
 
     fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
@@ -375,7 +376,7 @@ impl<T: Send> Future for CombinablePromiseImpl<T> {
     }
 }
 
-impl<T: Send> CombinablePromise<T> for CombinablePromiseImpl<T> {
+impl<T: Send> CombinableFuture<T> for CombinableFutureImpl<T> {
     fn or_timeout(&self, millis: u64) -> impl Future<Output = T> {
         async { future::pending::<T>().await }
     }
@@ -442,11 +443,11 @@ impl DurablePromise for DurablePromiseImpl {
         )
     }
 
-    fn get<T: Send>(&self) -> impl CombinablePromise<T>
+    fn get<T: Send>(&self) -> impl CombinableFuture<T>
     where
         for<'a> T: Serialize + Deserialize<'a>,
     {
-        CombinablePromiseImpl::new(self.state_machine.clone())
+        CombinableFutureImpl::new(self.state_machine.clone())
     }
 
     fn awaitable<T: Send>(&self) -> impl Future<Output = T> + Send

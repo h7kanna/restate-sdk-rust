@@ -53,6 +53,12 @@ name = "combinator"
 path = "src/combinator.rs"
 required-features = []
 
+[[example]]
+doc = false
+name = "timeout"
+path = "src/timeout.rs"
+required-features = []
+
 [features]
 default = []
 
