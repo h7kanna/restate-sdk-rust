@@ -32,7 +32,7 @@ fn endpoint_fn<T: ServiceHandler>(service: T) {
 #[restate::bundle]
 mod bundle {
     use super::ServiceHandler;
-    use restate::{async_recursion, Context, ContextBase};
+    use restate::{async_recursion, Context, ContextBase, JournalIndex};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{async_recursion, Context, ContextBase};
+    use restate::{async_recursion, Context, ContextBase, JournalIndex};
     use serde::{Deserialize, Serialize};
     use tracing::info;
 

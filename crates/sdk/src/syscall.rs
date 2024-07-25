@@ -38,13 +38,22 @@ macro_rules! future_impl {
             }
         }
         impl $future {
-            pub fn new(entry: $entry, state_machine: Arc<Mutex<StateMachine>>) -> Self {
+            pub fn new(
+                entry_name: Option<String>,
+                entry: $entry,
+                state_machine: Arc<Mutex<StateMachine>>,
+            ) -> Self {
                 Self {
+                    entry_name,
                     entry,
                     state_machine,
                     entry_index: Arc::new(AtomicU32::new(0)),
                     polled: Arc::new(AtomicBool::new(false)),
                 }
+            }
+
+            fn entry_name(&self) -> Option<String> {
+                self.entry_name.clone()
             }
 
             fn set_span(&self, mut state_machine: MutexGuard<'_, StateMachine>) {
@@ -57,6 +66,7 @@ macro_rules! future_impl {
 pub struct GetStateFuture {
     entry: GetStateEntry,
     state_machine: Arc<Mutex<StateMachine>>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
     polled: Arc<AtomicBool>,
 }
@@ -74,6 +84,7 @@ impl Future for GetStateFuture {
             None
         };
         let (entry_index, result) = state_machine.handle_user_code_message(
+            self.entry_name(),
             entry_index,
             Entry::GetState(self.entry.clone()),
             Some(cx.waker().clone()),
@@ -94,6 +105,7 @@ impl Future for GetStateFuture {
 pub struct GetStateKeysFuture {
     entry: GetStateKeysEntry,
     state_machine: Arc<Mutex<StateMachine>>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
     polled: Arc<AtomicBool>,
 }
@@ -111,6 +123,7 @@ impl Future for GetStateKeysFuture {
             None
         };
         let (entry_index, result) = state_machine.handle_user_code_message(
+            self.entry_name(),
             entry_index,
             Entry::GetStateKeys(self.entry.clone()),
             Some(cx.waker().clone()),
@@ -132,6 +145,7 @@ impl Future for GetStateKeysFuture {
 pub struct SetStateFuture {
     entry: SetStateEntry,
     state_machine: Arc<Mutex<StateMachine>>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
     polled: Arc<AtomicBool>,
 }
@@ -148,6 +162,7 @@ impl Future for SetStateFuture {
             None
         };
         self.state_machine.lock().handle_user_code_message(
+            self.entry_name(),
             entry_index,
             Entry::SetState(self.entry.clone()),
             None,
@@ -161,6 +176,7 @@ pub struct ClearStateFuture {
     entry: ClearStateEntry,
     state_machine: Arc<Mutex<StateMachine>>,
     polled: Arc<AtomicBool>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
 }
 
@@ -176,6 +192,7 @@ impl Future for ClearStateFuture {
             None
         };
         self.state_machine.lock().handle_user_code_message(
+            self.entry_name(),
             entry_index,
             Entry::ClearState(self.entry.clone()),
             None,
@@ -188,16 +205,22 @@ impl Future for ClearStateFuture {
 pub struct ClearAllStateFuture {
     state_machine: Arc<Mutex<StateMachine>>,
     polled: Arc<AtomicBool>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
 }
 
 impl ClearAllStateFuture {
-    pub fn new(state_machine: Arc<Mutex<StateMachine>>) -> Self {
+    pub fn new(entry_name: Option<String>, state_machine: Arc<Mutex<StateMachine>>) -> Self {
         Self {
             state_machine,
+            entry_name,
             entry_index: Arc::new(AtomicU32::new(0)),
             polled: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    fn entry_name(&self) -> Option<String> {
+        self.entry_name.clone()
     }
 
     pub fn entry(&self) -> u32 {
@@ -214,9 +237,12 @@ impl Future for ClearAllStateFuture {
         } else {
             None
         };
-        self.state_machine
-            .lock()
-            .handle_user_code_message(entry_index, Entry::ClearAllState, None);
+        self.state_machine.lock().handle_user_code_message(
+            self.entry_name(),
+            entry_index,
+            Entry::ClearAllState,
+            None,
+        );
         debug!("ClearAllState Result ready for entry: {:?}", entry_index);
         Poll::Ready(())
     }
@@ -225,6 +251,7 @@ impl Future for ClearAllStateFuture {
 pub struct AwakeableFuture {
     entry: AwakeableEntry,
     state_machine: Arc<Mutex<StateMachine>>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
     polled: Arc<AtomicBool>,
 }
@@ -232,14 +259,23 @@ pub struct AwakeableFuture {
 //future_impl!(AwakeableFuture, AwakeableEntry);
 
 impl AwakeableFuture {
-    pub fn new(entry: AwakeableEntry, state_machine: Arc<Mutex<StateMachine>>) -> Self {
+    pub fn new(
+        entry_name: Option<String>,
+        entry: AwakeableEntry,
+        state_machine: Arc<Mutex<StateMachine>>,
+    ) -> Self {
         let entry_index = state_machine.lock().get_next_user_code_journal_index();
         Self {
+            entry_name,
             entry,
             state_machine,
             entry_index: Arc::new(AtomicU32::new(entry_index)),
             polled: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    fn entry_name(&self) -> Option<String> {
+        self.entry_name.clone()
     }
 
     pub fn entry(&self) -> u32 {
@@ -262,6 +298,7 @@ impl Future for AwakeableFuture {
             None
         };
         let (entry_index, result) = state_machine.handle_user_code_message(
+            self.entry_name(),
             entry_index,
             Entry::Awakeable(self.entry.clone()),
             Some(cx.waker().clone()),
@@ -282,6 +319,7 @@ impl Future for AwakeableFuture {
 pub struct SleepFuture {
     entry: SleepEntry,
     state_machine: Arc<Mutex<StateMachine>>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
     polled: Arc<AtomicBool>,
 }
@@ -300,6 +338,7 @@ impl Future for SleepFuture {
             None
         };
         let (entry_index, result) = state_machine.handle_user_code_message(
+            self.entry_name(),
             entry_index,
             Entry::Sleep(self.entry.clone()),
             Some(cx.waker().clone()),
@@ -320,6 +359,7 @@ impl Future for SleepFuture {
 pub struct RunFuture {
     entry: RunEntry,
     state_machine: Arc<Mutex<StateMachine>>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
     polled: Arc<AtomicBool>,
 }
@@ -337,6 +377,7 @@ impl Future for RunFuture {
             None
         };
         let (entry_index, result) = state_machine.handle_user_code_message(
+            self.entry_name(),
             entry_index,
             Entry::Run(self.entry.clone()),
             Some(cx.waker().clone()),
@@ -360,6 +401,7 @@ where
 {
     invoke_entry: InvokeEntry,
     state_machine: Arc<Mutex<StateMachine>>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
     polled: Arc<AtomicBool>,
     _ret: PhantomData<T>,
@@ -369,14 +411,23 @@ impl<T> CallServiceFuture<T>
 where
     for<'a> T: Serialize + Deserialize<'a>,
 {
-    pub fn new(invoke_entry: InvokeEntry, state_machine: Arc<Mutex<StateMachine>>) -> Self {
+    pub fn new(
+        entry_name: Option<String>,
+        invoke_entry: InvokeEntry,
+        state_machine: Arc<Mutex<StateMachine>>,
+    ) -> Self {
         Self {
+            entry_name,
             invoke_entry,
             state_machine,
             entry_index: Arc::new(AtomicU32::new(0)),
             polled: Arc::new(AtomicBool::new(false)),
             _ret: PhantomData,
         }
+    }
+
+    fn entry_name(&self) -> Option<String> {
+        self.entry_name.clone()
     }
 
     fn set_span(&self, mut state_machine: MutexGuard<'_, StateMachine>) {
@@ -408,6 +459,7 @@ where
             None
         };
         let (entry_index, result) = state_machine.handle_user_code_message(
+            self.entry_name(),
             entry_index,
             Entry::Call(self.invoke_entry.clone()),
             Some(cx.waker().clone()),
@@ -430,6 +482,7 @@ where
 pub struct GetPromiseFuture {
     entry: GetPromiseEntry,
     state_machine: Arc<Mutex<StateMachine>>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
     polled: Arc<AtomicBool>,
 }
@@ -447,6 +500,7 @@ impl Future for GetPromiseFuture {
             None
         };
         let (entry_index, result) = state_machine.handle_user_code_message(
+            self.entry_name(),
             entry_index,
             Entry::GetPromise(self.entry.clone()),
             Some(cx.waker().clone()),
@@ -467,6 +521,7 @@ impl Future for GetPromiseFuture {
 pub struct PeekPromiseFuture {
     entry: PeekPromiseEntry,
     state_machine: Arc<Mutex<StateMachine>>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
     polled: Arc<AtomicBool>,
 }
@@ -484,6 +539,7 @@ impl Future for PeekPromiseFuture {
             None
         };
         let (entry_index, result) = state_machine.handle_user_code_message(
+            self.entry_name(),
             entry_index,
             Entry::PeekPromise(self.entry.clone()),
             Some(cx.waker().clone()),
@@ -508,6 +564,7 @@ impl Future for PeekPromiseFuture {
 pub struct CompletePromiseFuture {
     entry: CompletePromiseEntry,
     state_machine: Arc<Mutex<StateMachine>>,
+    entry_name: Option<String>,
     entry_index: Arc<AtomicU32>,
     polled: Arc<AtomicBool>,
 }
@@ -525,6 +582,7 @@ impl Future for CompletePromiseFuture {
             None
         };
         let (entry_index, result) = state_machine.handle_user_code_message(
+            self.entry_name(),
             entry_index,
             Entry::CompletePromise(self.entry.clone()),
             Some(cx.waker().clone()),

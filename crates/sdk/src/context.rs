@@ -89,7 +89,11 @@ pub trait ContextBase: ContextInstance {
     where
         for<'a> R: Serialize + Deserialize<'a>,
     {
-        let awakeable = AwakeableFuture::new(AwakeableEntry { result: None }, self.state_machine().clone());
+        let awakeable = AwakeableFuture::new(
+            None,
+            AwakeableEntry { result: None },
+            self.state_machine().clone(),
+        );
         let mut input_buf = BytesMut::new();
         input_buf.put_slice(&self.request().id);
         input_buf.put_u32(awakeable.entry());
@@ -112,6 +116,7 @@ pub trait ContextBase: ContextInstance {
         info!("Context sleep: Wake up time {}", wake_up_time);
         async move {
             let _ = SleepFuture::new(
+                None,
                 SleepEntry {
                     wake_up_time,
                     result: None,
@@ -129,13 +134,17 @@ pub trait ContextBase: ContextInstance {
         Func: RunAction<Output = Result<Output, anyhow::Error>> + Send + Sync + 'static,
     {
         async move {
+            // TODO: Running function
+            let name = std::any::type_name::<Func>().to_string();
+            let result = func().await;
             let _ = RunFuture::new(
+                Some("run".to_string()),
                 RunEntry {
                     result: EntryResult::Success(Bytes::new()),
                 },
                 self.state_machine().clone(),
-            );
-            let result = func().await;
+            )
+            .await;
             Ok(())
         }
     }
@@ -156,6 +165,7 @@ pub trait ContextBase: ContextInstance {
     {
         let parameter = serde_json::to_string(&parameter).unwrap();
         CallServiceFuture::<Output>::new(
+            None,
             InvokeEntry {
                 request: InvokeRequest {
                     service_name: service_name.into(),
@@ -198,7 +208,7 @@ pub trait KeyValueStoreReadOnly: ContextInstance {
             .lock()
             .local_state_store()
             .try_complete_get(name.as_ref(), &mut get_state_entry);
-        let get_state = GetStateFuture::new(get_state_entry, self.state_machine().clone());
+        let get_state = GetStateFuture::new(None, get_state_entry, self.state_machine().clone());
         let state_machine = self.state_machine().clone();
         async move {
             let bytes = get_state.await;
@@ -224,7 +234,8 @@ pub trait KeyValueStoreReadOnly: ContextInstance {
             .lock()
             .local_state_store()
             .try_complete_get_keys(&mut get_state_keys_entry);
-        let get_state_keys = GetStateKeysFuture::new(get_state_keys_entry, self.state_machine().clone());
+        let get_state_keys =
+            GetStateKeysFuture::new(None, get_state_keys_entry, self.state_machine().clone());
         async move {
             let bytes = get_state_keys.await;
             bytes.iter().map(|v| serde_json::from_slice(v).unwrap()).collect()
@@ -243,7 +254,7 @@ pub trait KeyValueStore: KeyValueStoreReadOnly {
             .lock()
             .local_state_store()
             .set(name.as_ref().to_string(), value);
-        SetStateFuture::new(set_state_entry, self.state_machine().clone())
+        SetStateFuture::new(None, set_state_entry, self.state_machine().clone())
     }
 
     fn clear<N: AsRef<str>>(&self, name: N) -> impl Future<Output = ()> {
@@ -252,12 +263,12 @@ pub trait KeyValueStore: KeyValueStoreReadOnly {
             .lock()
             .local_state_store()
             .clear(name.as_ref().to_string());
-        ClearStateFuture::new(clear_state_entry, self.state_machine().clone())
+        ClearStateFuture::new(None, clear_state_entry, self.state_machine().clone())
     }
 
     fn clear_all(&self) -> impl Future<Output = ()> {
         self.state_machine().lock().local_state_store().clear_all();
-        ClearAllStateFuture::new(self.state_machine().clone())
+        ClearAllStateFuture::new(None, self.state_machine().clone())
     }
 }
 
@@ -399,6 +410,7 @@ impl DurablePromise for DurablePromiseImpl {
         for<'a> T: Serialize + Deserialize<'a>,
     {
         let peek_promise = PeekPromiseFuture::new(
+            None,
             PeekPromiseEntry {
                 key: self.name.clone().into(),
                 value: None,
@@ -423,6 +435,7 @@ impl DurablePromise for DurablePromiseImpl {
     {
         let value = serde_json::to_string(&value).unwrap();
         CompletePromiseFuture::new(
+            None,
             CompletePromiseEntry {
                 key: self.name.clone().into(),
                 completion: EntryResult::Success(value.into()),
@@ -434,6 +447,7 @@ impl DurablePromise for DurablePromiseImpl {
 
     fn reject(&self, message: String) -> impl Future<Output = ()> {
         CompletePromiseFuture::new(
+            None,
             CompletePromiseEntry {
                 key: self.name.clone().into(),
                 completion: EntryResult::Failure(0u32.into(), message.into()),
@@ -455,6 +469,7 @@ impl DurablePromise for DurablePromiseImpl {
         for<'a> T: Serialize + Deserialize<'a>,
     {
         let get_promise = GetPromiseFuture::new(
+            None,
             GetPromiseEntry {
                 key: self.name.clone().into(),
                 value: None,

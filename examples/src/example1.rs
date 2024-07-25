@@ -26,7 +26,7 @@ fn endpoint_fn<T: ServiceHandler>(service: T) {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{Context, ContextBase};
+    use restate::{Context, ContextBase, JournalIndex};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -133,6 +133,7 @@ impl StateMachine {
                         let mut state_machine = state_machine.lock();
                          state_machine.handle_user_code_message(
                             None,
+                            None,
                             Entry::Output(OutputEntry {
                                 result: EntryResult::Success(result.clone().into()),
                             }),
@@ -163,6 +164,7 @@ impl StateMachine {
     #[tracing::instrument(parent = None, skip(self, waker, message))]
     pub fn handle_user_code_message(
         &mut self,
+        entry_name: Option<String>,
         entry_index: Option<u32>,
         message: Entry,
         waker: Option<Waker>,
@@ -187,7 +189,7 @@ impl StateMachine {
                                 PlainRawEntry::new(
                                     PlainEntryHeader::Output,
                                     service_protocol::OutputEntryMessage {
-                                        name: "".to_string(),
+                                        name: entry_name.unwrap_or_default(),
                                         result: match &output.result {
                                             EntryResult::Success(success) => {
                                                 Some(service_protocol::output_entry_message::Result::Value(
@@ -223,7 +225,7 @@ impl StateMachine {
                                 PlainEntryHeader::GetState { is_completed: false },
                                 service_protocol::GetStateEntryMessage {
                                     key: get_state.key.clone(),
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                     result: None,
                                 }
                                 .encode_to_vec()
@@ -242,7 +244,7 @@ impl StateMachine {
                                 PlainEntryHeader::SetState,
                                 service_protocol::SetStateEntryMessage {
                                     key: set_state.key.clone(),
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                     value: set_state.value.clone(),
                                 }
                                 .encode_to_vec()
@@ -261,7 +263,7 @@ impl StateMachine {
                                 PlainEntryHeader::ClearState,
                                 service_protocol::ClearStateEntryMessage {
                                     key: clear_state.key.clone(),
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                 }
                                 .encode_to_vec()
                                 .into(),
@@ -278,7 +280,7 @@ impl StateMachine {
                             PlainRawEntry::new(
                                 PlainEntryHeader::GetStateKeys { is_completed: false },
                                 service_protocol::GetStateKeysEntryMessage {
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                     result: match get_state_keys.value.as_ref() {
                                         Some(result) => match result {
                                             GetStateKeysResult::Result(keys) => {
@@ -312,9 +314,11 @@ impl StateMachine {
                         self.send(
                             PlainRawEntry::new(
                                 PlainEntryHeader::ClearState,
-                                service_protocol::ClearAllStateEntryMessage { name: "".to_string() }
-                                    .encode_to_vec()
-                                    .into(),
+                                service_protocol::ClearAllStateEntryMessage {
+                                    name: entry_name.unwrap_or_default(),
+                                }
+                                .encode_to_vec()
+                                .into(),
                             )
                             .into(),
                         );
@@ -329,7 +333,7 @@ impl StateMachine {
                                 PlainEntryHeader::GetPromise { is_completed: false },
                                 service_protocol::GetPromiseEntryMessage {
                                     key: get.key.clone().to_string(),
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                     result: None,
                                 }
                                 .encode_to_vec()
@@ -348,7 +352,7 @@ impl StateMachine {
                                 PlainEntryHeader::PeekPromise { is_completed: false },
                                 service_protocol::PeekPromiseEntryMessage {
                                     key: peek.key.clone().to_string(),
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                     result: None,
                                 }
                                 .encode_to_vec()
@@ -378,7 +382,7 @@ impl StateMachine {
                                 PlainEntryHeader::CompletePromise { is_completed: false },
                                 service_protocol::CompletePromiseEntryMessage {
                                     key: complete.key.clone().to_string(),
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                     completion: Some(completion),
                                     result: None,
                                 }
@@ -398,7 +402,7 @@ impl StateMachine {
                                 PlainEntryHeader::Sleep { is_completed: false },
                                 service_protocol::SleepEntryMessage {
                                     wake_up_time: sleep.wake_up_time,
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                     result: None,
                                 }
                                 .encode_to_vec()
@@ -420,7 +424,7 @@ impl StateMachine {
                                     parameter: call.request.parameter.clone(),
                                     headers: vec![],
                                     key: call.request.key.to_string(),
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                     result: None,
                                 }
                                 .encode_to_vec()
@@ -442,7 +446,7 @@ impl StateMachine {
                                     invoke_time: one_way.invoke_time,
                                     headers: vec![],
                                     key: one_way.request.key.to_string(),
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                 }
                                 .encode_to_vec()
                                 .into(),
@@ -459,7 +463,7 @@ impl StateMachine {
                             PlainRawEntry::new(
                                 PlainEntryHeader::Awakeable { is_completed: false },
                                 service_protocol::AwakeableEntryMessage {
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                     result: None,
                                 }
                                 .encode_to_vec()
@@ -480,7 +484,7 @@ impl StateMachine {
                                 },
                                 service_protocol::CompleteAwakeableEntryMessage {
                                     id: complete_awakeable.id.clone().to_string(),
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                     result: match &complete_awakeable.result {
                                         EntryResult::Success(value) => Some(
                                             complete_awakeable_entry_message::Result::Value(value.clone()),
@@ -513,7 +517,7 @@ impl StateMachine {
                             PlainRawEntry::new(
                                 PlainEntryHeader::Run,
                                 service_protocol::RunEntryMessage {
-                                    name: "".to_string(),
+                                    name: entry_name.unwrap_or_default(),
                                     result: Some(result),
                                 }
                                 .encode_to_vec()

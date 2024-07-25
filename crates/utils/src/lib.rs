@@ -35,7 +35,7 @@ use std::{
     time::Duration,
 };
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, field::debug};
 
 #[derive(Error, Debug)]
 #[error(transparent)]
@@ -96,6 +96,7 @@ struct JournalRowResult {
     index: Option<u32>,
     entry_type: Option<String>,
     completed: Option<bool>,
+    name: Option<String>,
     raw: Option<Vec<u8>>,
 }
 
@@ -142,6 +143,7 @@ impl JournalClient {
             sj.index,
             sj.entry_type,
             sj.completed,
+            sj.name,
             sj.raw
         FROM sys_journal sj
         WHERE
@@ -202,6 +204,8 @@ impl JournalClient {
             .map(|row| {
                 let index = row.index.expect("index");
                 let is_completed = row.completed.unwrap_or_default();
+                let name = row.name;
+                debug!("Name: {:?}", name);
                 let header = match row.entry_type.expect("entry_type").as_str() {
                     "Input" => PlainEntryHeader::Input,
                     "Output" => PlainEntryHeader::Output,
@@ -340,7 +344,7 @@ mod tests {
     #[traced_test]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_query() {
-        let invocation_id = "inv_1cXfyVijAOzb0oUQwcNzb2Po4t4rFiay8p";
+        let invocation_id = "inv_18kA9L7ZzOjk05VjFANzsSTdWKSzSO5NCh";
         let journal_client = JournalClient::new("http://localhost:9070".to_string())
             .await
             .unwrap();
