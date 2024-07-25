@@ -63,12 +63,10 @@ mod bundle {
             let timeout = ctx.timeout(output, 10000);
             let output = timeout.await;
             match output {
-                Ok(output) => {
-                    Ok(ExecOutput { test: output?.test })
-                }
-                Err(_) => {
-                    Ok(ExecOutput { test: "timeout".to_string() })
-                }
+                Ok(output) => Ok(ExecOutput { test: output?.test }),
+                Err(_) => Ok(ExecOutput {
+                    test: "timeout".to_string(),
+                }),
             }
         }
     }

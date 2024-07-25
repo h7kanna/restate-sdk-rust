@@ -12,8 +12,10 @@ use arrow_convert::{
     field::ArrowField,
     ArrowDeserialize, ArrowField,
 };
+use async_stream::try_stream;
 use bytes::{Buf, Bytes};
 use chrono::{DateTime, Local, TimeZone};
+use futures_util::Stream;
 use reqwest::{Client, Method, RequestBuilder};
 pub use restate_sdk_types::journal::{
     raw::{PlainEntryHeader, PlainRawEntry},
@@ -21,8 +23,19 @@ pub use restate_sdk_types::journal::{
 };
 pub use restate_service_protocol::message::{MessageType, ProtocolMessage};
 use serde::Serialize;
-use std::{collections::VecDeque, fmt::Display, fs, path::Path, time::Duration};
+use std::{
+    collections::VecDeque,
+    fmt::Display,
+    fs,
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 use thiserror::Error;
+use tracing::debug;
 
 #[derive(Error, Debug)]
 #[error(transparent)]
@@ -95,6 +108,11 @@ pub struct JournalClient {
     request_builder: RequestBuilder,
 }
 
+pub struct JournalWatchOptions {
+    pub interval_millis: u64,
+    pub cancellation_token: Arc<AtomicBool>,
+}
+
 impl JournalClient {
     pub async fn new(admin_url: String) -> Result<Self, Error> {
         let raw_client = Client::builder()
@@ -109,7 +127,7 @@ impl JournalClient {
             .build()?;
 
         let request_builder = raw_client
-            .request(Method::POST, "http://localhost:9070/query")
+            .request(Method::POST, format!("{}/query", admin_url))
             .timeout(Duration::from_secs(30));
 
         Ok(Self {
@@ -219,9 +237,9 @@ impl JournalClient {
 
     pub async fn journal_to_protocol(&self, invocation_id: String) -> History {
         let journal = self.query_journal(invocation_id.clone()).await;
-        let output_file = true;
-        let json = serde_json::to_string(&journal).unwrap();
+        let output_file = false;
         if output_file {
+            let json = serde_json::to_string(&journal).unwrap();
             let mut out_file = Path::new(".").to_path_buf();
             out_file.push("history.json");
             fs::write(out_file, json).unwrap();
@@ -263,17 +281,79 @@ impl JournalClient {
         journal.push_front((MessageType::Start, start_message));
         journal
     }
+
+    pub async fn watch_journal(
+        &self,
+        invocation_id: String,
+        options: JournalWatchOptions,
+    ) -> impl Stream<Item = Result<HistoryMessage, Error>> + '_ {
+        try_stream! {
+            let mut existing = self.journal_to_protocol(invocation_id.clone()).await;
+            for entry in existing.iter() {
+                yield entry.clone();
+            }
+            debug!(
+                "Journal polling started for Invocation: {}, History: {}",
+                invocation_id,
+                existing.len()
+            );
+            loop {
+                if options.cancellation_token.load(Ordering::Relaxed) {
+                    break;
+                } else {
+                    tokio::time::sleep(Duration::from_millis(options.interval_millis)).await;
+                }
+
+                let journal = self.journal_to_protocol(invocation_id.clone()).await;
+                debug!(
+                    "New entries received for Invocation: {}, History: {}",
+                    invocation_id,
+                    journal.len()
+                );
+                if existing.len() < journal.len() {
+                    let start = journal.get(0).unwrap().clone();
+                    yield start;
+                    for entry in journal.iter().skip(existing.len()) {
+                        let end = match entry.0 {
+                            MessageType::Error | MessageType::End | MessageType::OutputEntry => true,
+                            _ => false,
+                        };
+                        yield entry.clone();
+                        if end {
+                            break;
+                        }
+                    }
+                    existing = journal;
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures_util::{pin_mut, StreamExt};
+    use tracing::debug;
+    use tracing_test::traced_test;
 
+    #[traced_test]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_query() {
-        let invocation_id = "inv_17b9KnOvqTp33vcIJVH6BKWRmxeKIdaFEJ";
-        let output_file = false;
-        let journal_client = JournalClient::new("".to_string()).await.unwrap();
-        let journal = journal_client.journal_to_protocol(invocation_id.to_owned()).await;
+        let invocation_id = "inv_1cXfyVijAOzb0oUQwcNzb2Po4t4rFiay8p";
+        let journal_client = JournalClient::new("http://localhost:9070".to_string())
+            .await
+            .unwrap();
+        let cancellation_token = Arc::new(AtomicBool::new(false));
+        let journal = journal_client
+            .watch_journal(invocation_id.to_owned(), JournalWatchOptions {
+                interval_millis: 500,
+                cancellation_token: cancellation_token.clone(),
+            })
+            .await;
+        pin_mut!(journal);
+        while let Some(message) = journal.next().await {
+            debug!("{:?}", message)
+        }
     }
 }
