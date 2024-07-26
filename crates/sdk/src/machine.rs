@@ -578,6 +578,10 @@ impl StateMachine {
         return self.journal.get_next_user_code_journal_index();
     }
 
+    pub fn is_next_entry_replaying(&self) -> bool {
+        return self.journal.is_next_entry_replaying();
+    }
+
     fn send(&mut self, message: ProtocolMessage) {
         // If in processing or no use calls are performed at all
         if !self.journal.is_replaying() || self.journal.get_user_code_journal_index() == 0 {

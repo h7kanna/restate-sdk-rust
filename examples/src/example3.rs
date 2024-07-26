@@ -40,12 +40,18 @@ mod bundle {
         #[restate::handler]
         pub async fn service(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             ctx.run(move || async move {
-                info!("Service: service: sleeping");
+                info!("Service: action: doing important work");
                 tokio::time::sleep(Duration::from_secs(10)).await;
                 Ok(())
             })
             .await?;
-            info!("Service: run: pending {:?}", name);
+            ctx.run(move || async move {
+                info!("Service: action: doing more important work");
+                tokio::time::sleep(Duration::from_secs(20)).await;
+                Ok(())
+            })
+            .await?;
+            info!("Service: action: never ending, cleanup");
             ctx.run(Self::pending).await?;
             Ok(ExecOutput { test: name.test })
         }

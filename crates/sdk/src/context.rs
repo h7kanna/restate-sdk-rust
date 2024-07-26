@@ -28,10 +28,10 @@ use std::{
     ops::Add,
     pin::Pin,
     sync::Arc,
-    task::Poll,
+    task::{Poll, Waker},
     time::{Duration, SystemTime},
 };
-use tracing::{info, Instrument};
+use tracing::{debug, info, Instrument};
 
 #[derive(Clone)]
 pub struct Request {
@@ -134,17 +134,32 @@ pub trait ContextBase: ContextInstance {
         Func: RunAction<Output = Result<Output, anyhow::Error>> + Send + Sync + 'static,
     {
         async move {
-            // TODO: Running function
+            // TODO: Fix Running function name
             let name = std::any::type_name::<Func>().to_string();
-            let result = func().await;
-            let _ = RunFuture::new(
-                Some("run".to_string()),
-                RunEntry {
-                    result: EntryResult::Success(Bytes::new()),
-                },
-                self.state_machine().clone(),
-            )
-            .await;
+            let (run_tx, run_rx) = std::sync::mpsc::sync_channel(1);
+            let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
+
+            // TODO: Move this into the future and only create if not replaying
+            // TODO: Abortable and unwinds
+            let side_effect = name.clone();
+            let _handle = tokio::spawn(async move {
+                match run_rx.recv() {
+                    Ok(waker) => {
+                        let waker: Waker = waker;
+                        debug!("Running action: {}", side_effect);
+                        let _result = func().await;
+                        //let result = serde_json::to_vec(&result).unwrap_or_default();
+                        let result = RunEntry {
+                            result: EntryResult::Success(Bytes::new()),
+                        };
+                        let _ = result_tx.send(result);
+                        waker.wake();
+                    }
+                    Err(_) => {}
+                }
+            });
+
+            let _result = RunFuture::new(Some(name), self.state_machine().clone(), run_tx, result_rx).await;
             Ok(())
         }
     }
