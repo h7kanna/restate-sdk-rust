@@ -4,16 +4,16 @@ All URIs are relative to *http://localhost*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**terminate_invocation**](InvocationApi.md#terminate_invocation) | **DELETE** /invocations/{invocation_id} | Terminate an invocation
+[**delete_invocation**](InvocationApi.md#delete_invocation) | **DELETE** /invocations/{invocation_id} | Delete an invocation
 
 
 
-## terminate_invocation
+## delete_invocation
 
-> terminate_invocation(invocation_id, mode)
-Terminate an invocation
+> delete_invocation(invocation_id, mode)
+Delete an invocation
 
-Terminate the given invocation. By default, an invocation is terminated by gracefully cancelling it. This ensures virtual object state consistency. Alternatively, an invocation can be killed which does not guarantee consistency for virtual object instance state, in-flight invocations to other services, etc.
+Delete the given invocation. By default, an invocation is terminated by gracefully cancelling it. This ensures virtual object state consistency. Alternatively, an invocation can be killed which does not guarantee consistency for virtual object instance state, in-flight invocations to other services, etc. A stored completed invocation can also be purged
 
 ### Parameters
 
@@ -21,7 +21,7 @@ Terminate the given invocation. By default, an invocation is terminated by grace
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **invocation_id** | **String** | Invocation identifier. | [required] |
-**mode** | Option<[**TerminationMode**](.md)> | If cancel, it will gracefully terminate the invocation. If kill, it will terminate the invocation with a hard stop. |  |
+**mode** | Option<[**DeletionMode**](.md)> | If cancel, it will gracefully terminate the invocation. If kill, it will terminate the invocation with a hard stop. If purge, it will only cleanup the response for completed invocations, and leave unaffected an in-flight invocation. |  |
 
 ### Return type
 

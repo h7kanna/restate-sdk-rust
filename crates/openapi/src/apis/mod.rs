@@ -97,5 +97,6 @@ pub mod openapi_api;
 pub mod service_api;
 pub mod service_handler_api;
 pub mod subscription_api;
+pub mod version_api;
 
 pub mod configuration;
