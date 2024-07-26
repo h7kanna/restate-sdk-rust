@@ -128,7 +128,7 @@ cargo run --example example5
 
 ```shell
 curl -v localhost:8080/Service/service -H 'content-type: application/json' -d '{"test": "test"}'
-curl -v localhost:8080/restate/awakeables/prom_1rWMkEHIGEbgBkOBswV1G4I9IjP9NpljTAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
+curl -v localhost:8080/restate/awakeables/prom_1oPf3kPPfX0cBkO0f4USI2VmrwF_rtIFpAAAAAQ/resolve -H 'content-type: application/json' -d '{"test": "next"}'
 
 ```
 

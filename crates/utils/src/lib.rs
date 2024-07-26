@@ -240,14 +240,6 @@ impl JournalClient {
 
     pub async fn journal_to_protocol(&self, invocation_id: String) -> History {
         let journal = self.query_journal(invocation_id.clone()).await;
-        let output_file = false;
-        if output_file {
-            let json = serde_json::to_string(&journal).unwrap();
-            let mut out_file = Path::new(".").to_path_buf();
-            out_file.push("history.json");
-            fs::write(out_file, json).unwrap();
-        }
-
         let mut journal = journal
             .into_iter()
             .map(|message| {
@@ -338,13 +330,15 @@ impl JournalClient {
 mod tests {
     use super::*;
     use futures_util::{pin_mut, StreamExt};
+    use restate_sdk_types::journal::{Entry, EntryResult};
+    use restate_service_protocol::codec::ProtobufRawEntryCodec;
     use tracing::debug;
     use tracing_test::traced_test;
 
     #[traced_test]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_query() {
-        let invocation_id = "inv_18vrKmddt4y27q2tBTQgriGtvLaPvrvmJH";
+        let invocation_id = "inv_167Vl6XWU8sU3d5tatRX0V8kkc9HcVWmlj";
         let journal_client = JournalClient::new("http://localhost:9070".to_string())
             .await
             .unwrap();
@@ -357,7 +351,42 @@ mod tests {
             .await;
         pin_mut!(journal);
         while let Some(message) = journal.next().await {
-            debug!("{:?}", message)
+            match message {
+                Ok(message) => match message.2 {
+                    ProtocolMessage::UnparsedEntry(entry) => {
+                        match entry.deserialize_entry::<ProtobufRawEntryCodec>().unwrap() {
+                            Entry::Input(_) => {}
+                            Entry::Output(_) => {}
+                            Entry::GetState(_) => {}
+                            Entry::SetState(_) => {}
+                            Entry::ClearState(_) => {}
+                            Entry::GetStateKeys(_) => {}
+                            Entry::ClearAllState => {}
+                            Entry::GetPromise(_) => {}
+                            Entry::PeekPromise(_) => {}
+                            Entry::CompletePromise(_) => {}
+                            Entry::Sleep(_) => {}
+                            Entry::Call(call) => match call.result {
+                                Some(result) => match result {
+                                    EntryResult::Success(bytes) => {
+                                        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                                        debug!("Call: {:?}, Value: {}", message.0, json);
+                                    }
+                                    EntryResult::Failure(_, _) => {}
+                                },
+                                None => {}
+                            },
+                            Entry::OneWayCall(_) => {}
+                            Entry::Awakeable(_) => {}
+                            Entry::CompleteAwakeable(_) => {}
+                            Entry::Run(_) => {}
+                            Entry::Custom(_) => {}
+                        }
+                    }
+                    _ => {}
+                },
+                Err(err) => {}
+            }
         }
     }
 }
