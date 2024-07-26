@@ -100,7 +100,7 @@ struct JournalRowResult {
     raw: Option<Vec<u8>>,
 }
 
-pub type HistoryMessage = (MessageType, ProtocolMessage);
+pub type HistoryMessage = (Option<String>, MessageType, ProtocolMessage);
 
 pub type History = VecDeque<HistoryMessage>;
 
@@ -196,7 +196,7 @@ impl JournalClient {
         Ok(results.into_iter())
     }
 
-    pub async fn query_journal(&self, invocation_id: String) -> Vec<PlainRawEntry> {
+    pub async fn query_journal(&self, invocation_id: String) -> Vec<(Option<String>, PlainRawEntry)> {
         let mut journal = self
             .run_query_and_map_results::<JournalRowResult>(invocation_id)
             .await
@@ -205,7 +205,6 @@ impl JournalClient {
                 let index = row.index.expect("index");
                 let is_completed = row.completed.unwrap_or_default();
                 let name = row.name;
-                debug!("Name: {:?}", name);
                 let header = match row.entry_type.expect("entry_type").as_str() {
                     "Input" => PlainEntryHeader::Input,
                     "Output" => PlainEntryHeader::Output,
@@ -232,7 +231,7 @@ impl JournalClient {
                     "Run" => PlainEntryHeader::Run,
                     t => PlainEntryHeader::Custom { code: 0 },
                 };
-                PlainRawEntry::new(header, row.raw.unwrap().into())
+                (name, PlainRawEntry::new(header, row.raw.unwrap().into()))
             })
             .collect::<Vec<_>>();
         journal.reverse();
@@ -251,7 +250,8 @@ impl JournalClient {
 
         let mut journal = journal
             .into_iter()
-            .map(|entry| {
+            .map(|message| {
+                let entry = message.1;
                 let message_type = match entry.header().as_entry_type() {
                     EntryType::Input => MessageType::InputEntry,
                     EntryType::Output => MessageType::OutputEntry,
@@ -271,7 +271,7 @@ impl JournalClient {
                     EntryType::Run => MessageType::SideEffectEntry,
                     EntryType::Custom => MessageType::CustomEntry(0),
                 };
-                (message_type, ProtocolMessage::UnparsedEntry(entry))
+                (message.0, message_type, ProtocolMessage::UnparsedEntry(entry))
             })
             .collect::<History>();
         let start_message = ProtocolMessage::new_start_message(
@@ -282,7 +282,7 @@ impl JournalClient {
             false,
             vec![],
         );
-        journal.push_front((MessageType::Start, start_message));
+        journal.push_front((None, MessageType::Start, start_message));
         journal
     }
 
@@ -318,7 +318,7 @@ impl JournalClient {
                     let start = journal.get(0).unwrap().clone();
                     yield start;
                     for entry in journal.iter().skip(existing.len()) {
-                        let end = match entry.0 {
+                        let end = match entry.1 {
                             MessageType::Error | MessageType::End | MessageType::OutputEntry => true,
                             _ => false,
                         };
@@ -344,7 +344,7 @@ mod tests {
     #[traced_test]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_query() {
-        let invocation_id = "inv_18kA9L7ZzOjk05VjFANzsSTdWKSzSO5NCh";
+        let invocation_id = "inv_18vrKmddt4y27q2tBTQgriGtvLaPvrvmJH";
         let journal_client = JournalClient::new("http://localhost:9070".to_string())
             .await
             .unwrap();

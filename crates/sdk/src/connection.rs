@@ -28,7 +28,7 @@ pub trait RestateStreamConsumer {
 }
 
 pub struct MockHttp2Receiver {
-    inbound_rx: VecDeque<(MessageType, ProtocolMessage)>,
+    inbound_rx: VecDeque<(Option<String>, MessageType, ProtocolMessage)>,
 }
 
 pub struct MockHttp2Sender {
@@ -39,7 +39,7 @@ impl Sealed for MockHttp2Receiver {}
 
 impl MessageReceiver for MockHttp2Receiver {
     async fn recv(&mut self) -> Option<(MessageType, ProtocolMessage)> {
-        self.inbound_rx.pop_front()
+        self.inbound_rx.pop_front().map(|message| (message.1, message.2))
     }
 }
 
@@ -53,7 +53,7 @@ impl MessageSender for MockHttp2Sender {
 }
 
 pub fn setup_mock_connection(
-    inbound_rx: VecDeque<(MessageType, ProtocolMessage)>,
+    inbound_rx: VecDeque<(Option<String>, MessageType, ProtocolMessage)>,
 ) -> (
     MockHttp2Receiver,
     MockHttp2Sender,

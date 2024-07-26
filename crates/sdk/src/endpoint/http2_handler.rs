@@ -73,6 +73,7 @@ mod tests {
     async fn test_handle_connection() {
         let (receiver, sender, mut output_rx) = setup_mock_connection(VecDeque::from([
             (
+                None,
                 MessageType::Start,
                 ProtocolMessage::Start(restate_sdk_types::service_protocol::StartMessage {
                     id: Default::default(),
@@ -84,6 +85,7 @@ mod tests {
                 }),
             ),
             (
+                None,
                 MessageType::InputEntry,
                 PlainRawEntry::new(
                     PlainEntryHeader::Input,
@@ -98,6 +100,7 @@ mod tests {
                 .into(),
             ),
             (
+                None,
                 MessageType::InvokeEntry,
                 PlainRawEntry::new(
                     PlainEntryHeader::Call {
