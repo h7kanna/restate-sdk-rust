@@ -128,14 +128,19 @@ pub trait ContextBase: ContextInstance {
         }
     }
 
-    fn run<Func, Output>(&self, func: Func) -> impl Future<Output = Result<(), anyhow::Error>> + '_
+    fn run<'c, Name: Into<String> + 'c, Func, Output>(
+        &'c self,
+        name: Name,
+        func: Func,
+    ) -> impl Future<Output = Result<(), anyhow::Error>> + 'c
     where
         for<'a> Output: Serialize + Deserialize<'a>,
         Func: RunAction<Output = Result<Output, anyhow::Error>> + Send + Sync + 'static,
     {
         async move {
             // TODO: Fix Running function name
-            let name = std::any::type_name::<Func>().to_string();
+            //let name = std::any::type_name::<Func>().to_string();
+            let name = name.into();
             let (run_tx, run_rx) = std::sync::mpsc::sync_channel(1);
             let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
 
