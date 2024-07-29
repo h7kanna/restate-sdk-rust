@@ -36,7 +36,7 @@ mod bundle {
         #[restate::handler]
         pub async fn service(ctx: Context, name: ExecInput) -> Result<ExecOutput, anyhow::Error> {
             let (id, result) = ctx.awakeable::<SignalInput>();
-            ctx.run(move || {
+            ctx.run("action", move || {
                 let id = id.clone();
                 async move {
                     info!("Service: service: saving signal: {}", id);
