@@ -1,4 +1,4 @@
-use restate::{endpoint, RestateEndpointOptions};
+use restate_sdk_api::{self as restate, endpoint, RestateEndpointOptions};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
 #[restate::main]
@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{async_recursion, Context, ContextBase, JournalIndex};
+    use restate_sdk_api::{self as restate, async_recursion, Context, ContextBase, JournalIndex};
     use serde::{Deserialize, Serialize};
     use std::{future, time::Duration};
     use tracing::info;

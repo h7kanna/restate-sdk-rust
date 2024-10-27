@@ -3,11 +3,10 @@ use bytes::Bytes;
 use dashmap::DashMap;
 use futures_util::task::waker;
 use prost::Message;
-use restate_sdk_types::journal::{CancelInvocationEntry, GetCallInvocationIdEntry};
 use restate_sdk_types::{
     journal::{
-        CompleteResult, CompletionResult, Entry, EntryResult, GetStateKeysResult, InputEntry, RunEntry,
-        SleepResult,
+        CancelInvocationEntry, CompleteResult, CompletionResult, Entry, EntryResult,
+        GetCallInvocationIdEntry, GetStateKeysResult, InputEntry, RunEntry, SleepResult,
     },
     service_protocol::{
         awakeable_entry_message, call_entry_message, complete_promise_entry_message, completion_message,
@@ -71,13 +70,10 @@ impl Journal {
         if self.invocation.number_entries_to_replay == 1 {
             self.transition_state(NewExecutionState::PROCESSING);
         }
-        self.pending_entries.insert(
-            0,
-            JournalEntry {
-                entry: Entry::Input(input),
-                waker: None,
-            },
-        );
+        self.pending_entries.insert(0, JournalEntry {
+            entry: Entry::Input(input),
+            waker: None,
+        });
     }
 
     fn transition_state(&mut self, new_state: NewExecutionState) {
@@ -618,13 +614,11 @@ impl Journal {
     }
 
     pub fn append_entry(&self, entry: Entry, waker: Waker) {
-        self.pending_entries.insert(
-            self.user_code_journal_index,
-            JournalEntry {
+        self.pending_entries
+            .insert(self.user_code_journal_index, JournalEntry {
                 entry,
                 waker: Some(waker),
-            },
-        );
+            });
     }
 
     pub fn is_unresolved(&self, index: u32) -> bool {

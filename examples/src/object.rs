@@ -1,4 +1,4 @@
-use restate::{endpoint, RestateEndpointOptions};
+use restate_sdk_api::{self as restate, endpoint, RestateEndpointOptions};
 
 #[restate::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -7,7 +7,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{ContextBase, KeyValueStore, KeyValueStoreReadOnly, ObjectContext, ObjectSharedContext};
+    use restate_sdk_api::{
+        self as restate, ContextBase, KeyValueStore, KeyValueStoreReadOnly, ObjectContext,
+        ObjectSharedContext,
+    };
     use serde::{Deserialize, Serialize};
     use tracing::info;
 

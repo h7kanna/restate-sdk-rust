@@ -13,5 +13,4 @@ mod utils;
 pub mod connection;
 pub mod context;
 pub mod endpoint;
-#[cfg(feature = "logger")]
-pub mod logger;
+#[cfg(feature = "logger")] pub mod logger;

@@ -11,20 +11,17 @@ use futures::channel::oneshot;
 use parking_lot::{Mutex, MutexGuard};
 use prost::Message;
 use restate_sdk_core::ServiceHandler;
-use restate_sdk_types::journal::{CancelInvocationTarget, GetCallInvocationIdResult};
-use restate_sdk_types::service_protocol::{
-    cancel_invocation_entry_message, get_call_invocation_id_entry_message,
-};
 use restate_sdk_types::{
     endpoint_manifest::ProtocolMode,
     journal::{
         raw::{PlainEntryHeader, PlainRawEntry},
-        Entry, EntryResult, GetStateKeysResult, OutputEntry,
+        CancelInvocationTarget, Entry, EntryResult, GetCallInvocationIdResult, GetStateKeysResult,
+        OutputEntry,
     },
     service_protocol,
     service_protocol::{
-        complete_awakeable_entry_message, complete_promise_entry_message, get_state_keys_entry_message,
-        run_entry_message, Failure,
+        cancel_invocation_entry_message, complete_awakeable_entry_message, complete_promise_entry_message,
+        get_call_invocation_id_entry_message, get_state_keys_entry_message, run_entry_message, Failure,
     },
 };
 use restate_service_protocol::message::{MessageType, ProtocolMessage};

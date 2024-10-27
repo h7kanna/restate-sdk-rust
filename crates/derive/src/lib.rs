@@ -94,7 +94,7 @@ pub fn bundle(args: TokenStream, item: TokenStream) -> TokenStream {
 
     quote!(
         #endpoint
-        use restate::{
+        use restate_sdk_api::{
             empty, full, http2_handler, setup_connection, BodyExt, BoxBody, Bytes, Incoming, Method, Request,
             Response, StatusCode,
         };

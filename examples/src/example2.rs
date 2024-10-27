@@ -1,7 +1,7 @@
-use restate::{endpoint, RestateEndpointOptions};
+use restate_sdk_api::{self as restate, endpoint, RestateEndpointOptions};
 use tracing::info;
 /*
-use restate::{
+use restate_sdk_api::{
     empty, endpoint::endpoint, full, http2_handler, BodyExt, BoxBody, Bytes, Http2Receiver, Incoming, Method,
     Request, Response, StatusCode,
 };
@@ -32,7 +32,7 @@ fn endpoint_fn<T: ServiceHandler>(service: T) {
 #[restate::bundle]
 mod bundle {
     use super::ServiceHandler;
-    use restate::{async_recursion, Context, ContextBase, JournalIndex};
+    use restate_sdk_api::{self as restate, async_recursion, Context, ContextBase, JournalIndex};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +72,7 @@ mod bundle {
                     "SimpleService".to_string(),
                     "greet".to_string(),
                     name,
+                    None,
                     None,
                 )
                 .await
@@ -126,6 +127,7 @@ mod bundle {
                     "service".to_string(),
                     name,
                     None,
+                    None,
                 )
                 .await
         }
@@ -137,6 +139,7 @@ mod bundle {
                     "Service".to_string(),
                     "greet".to_string(),
                     name,
+                    None,
                     None,
                 )
                 .await

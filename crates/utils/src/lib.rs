@@ -348,13 +348,10 @@ mod tests {
             .unwrap();
         let cancellation_token = Arc::new(AtomicBool::new(false));
         let journal = journal_client
-            .watch_journal(
-                invocation_id.to_owned(),
-                JournalWatchOptions {
-                    interval_millis: 500,
-                    cancellation_token: cancellation_token.clone(),
-                },
-            )
+            .watch_journal(invocation_id.to_owned(), JournalWatchOptions {
+                interval_millis: 500,
+                cancellation_token: cancellation_token.clone(),
+            })
             .await;
         pin_mut!(journal);
         while let Some(message) = journal.next().await {

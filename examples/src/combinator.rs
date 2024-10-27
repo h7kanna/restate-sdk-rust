@@ -1,4 +1,4 @@
-use restate::{endpoint, RestateEndpointOptions};
+use restate_sdk_api::{endpoint, RestateEndpointOptions};
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
@@ -27,7 +27,7 @@ fn endpoint_fn<T: ServiceHandler>(service: T) {
 #[restate::bundle]
 mod bundle {
     use futures::{join, pin_mut, select, FutureExt};
-    use restate::{Context, ContextBase};
+    use restate_sdk_api::{Context, ContextBase};
     use serde::{Deserialize, Serialize};
     use std::time::Duration;
     use tracing::info;

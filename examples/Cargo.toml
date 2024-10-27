@@ -65,7 +65,7 @@ default = []
 [dependencies]
 anyhow = { workspace = true }
 futures = { workspace = true }
-restate = { version = "0.1.0", path = "../crates/api" }
+restate-sdk-api = { version = "0.1.0", path = "../crates/api" }
 serde = { workspace = true }
 tokio = { version = "1", features = ["full"] }
 tracing = { workspace = true }

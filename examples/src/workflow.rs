@@ -1,4 +1,4 @@
-use restate::{endpoint, RestateEndpointOptions};
+use restate_sdk_api::{self as restate, endpoint, RestateEndpointOptions};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
 #[restate::main]
@@ -16,8 +16,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[restate::bundle]
 mod bundle {
-    use restate::{
-        ContextBase, ContextWorkflowShared, DurablePromise, JournalIndex, WorkflowContext,
+    use restate_sdk_api::{
+        self as restate, ContextBase, ContextWorkflowShared, DurablePromise, JournalIndex, WorkflowContext,
         WorkflowSharedContext,
     };
     use serde::{Deserialize, Serialize};
