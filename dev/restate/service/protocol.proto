@@ -19,6 +19,14 @@ enum ServiceProtocolVersion {
   SERVICE_PROTOCOL_VERSION_UNSPECIFIED = 0;
   // initial service protocol version
   V1 = 1;
+  // Added
+  // * Entry retry mechanism: ErrorMessage.next_retry_delay, StartMessage.retry_count_since_last_stored_entry and StartMessage.duration_since_last_stored_entry
+  V2 = 2;
+  // Added
+  // * New entry to cancel invocations: CancelInvocationEntryMessage
+  // * New entry to retrieve the invocation id: GetCallInvocationIdEntryMessage
+  // * New field to set idempotency key for Call entries
+  V3 = 3;
 }
 
 // --- Core frames ---
@@ -47,6 +55,18 @@ message StartMessage {
 
   // If this invocation has a key associated (e.g. for objects and workflows), then this key is filled in. Empty otherwise.
   string key = 6;
+
+  // Retry count since the last stored entry.
+  //
+  // Please note that this count might not be accurate, as it's not durably stored,
+  // thus it might get reset in case Restate crashes/changes leader.
+  uint32 retry_count_since_last_stored_entry = 7;
+
+  // Duration since the last stored entry, in milliseconds.
+  //
+  // Please note this duration might not be accurate,
+  // and might change depending on which Restate replica executes the request.
+  uint64 duration_since_last_stored_entry = 8;
 }
 
 // Type: 0x0000 + 1
@@ -90,6 +110,10 @@ message ErrorMessage {
   optional string related_entry_name = 5;
   // Entry type.
   optional uint32 related_entry_type = 6;
+
+  // Delay before executing the next retry, specified as duration in milliseconds.
+  // If provided, it will override the default retry policy used by Restate's invoker ONLY for the next retry attempt.
+  optional uint64 next_retry_delay = 8;
 }
 
 // Type: 0x0000 + 4
@@ -294,6 +318,9 @@ message CallEntryMessage {
   // If this invocation has a key associated (e.g. for objects and workflows), then this key is filled in. Empty otherwise.
   string key = 5;
 
+  // If present, it must be non empty.
+  optional string idempotency_key = 6;
+
   oneof result {
     bytes value = 14;
     Failure failure = 15;
@@ -322,6 +349,9 @@ message OneWayCallEntryMessage {
 
   // If this invocation has a key associated (e.g. for objects and workflows), then this key is filled in. Empty otherwise.
   string key = 6;
+
+  // If present, it must be non empty.
+  optional string idempotency_key = 7;
 
   // Entry name
   string name = 12;
@@ -364,10 +394,40 @@ message CompleteAwakeableEntryMessage {
 message RunEntryMessage {
   oneof result {
     bytes value = 14;
-    dev.restate.service.protocol.Failure failure = 15;
+    Failure failure = 15;
   };
 
   // Entry name
+  string name = 12;
+}
+
+// Completable: No
+// Fallible: Yes
+// Type: 0x0C00 + 6
+message CancelInvocationEntryMessage {
+  oneof target {
+    // Target invocation id to cancel
+    string invocation_id = 1;
+    // Target index of the call/one way call journal entry in this journal.
+    uint32 call_entry_index = 2;
+  }
+
+  // Entry name
+  string name = 12;
+}
+
+// Completable: Yes
+// Fallible: Yes
+// Type: 0x0C00 + 7
+message GetCallInvocationIdEntryMessage {
+  // Index of the call/one way call journal entry in this journal.
+  uint32 call_entry_index = 1;
+
+  oneof result {
+    string value = 14;
+    Failure failure = 15;
+  };
+
   string name = 12;
 }
 
