@@ -14,6 +14,7 @@ use super::*;
 
 use crate::errors::{InvocationError, InvocationErrorCode};
 use crate::identifiers::EntryIndex;
+use crate::invocation::Header;
 use crate::time::MillisSinceEpoch;
 use std::fmt;
 
@@ -40,14 +41,14 @@ pub enum Entry {
     Awakeable(AwakeableEntry),
     CompleteAwakeable(CompleteAwakeableEntry),
     Run(RunEntry),
+    CancelInvocation(CancelInvocationEntry),
+    GetCallInvocationId(GetCallInvocationIdEntry),
     Custom(Bytes),
 }
 
 impl Entry {
     pub fn input(result: impl Into<Bytes>) -> Self {
-        Entry::Input(InputEntry {
-            value: result.into(),
-        })
+        Entry::Input(InputEntry { value: result.into() })
     }
 
     pub fn output(result: EntryResult) -> Self {
@@ -84,10 +85,7 @@ impl Entry {
         Entry::Call(InvokeEntry { request, result })
     }
 
-    pub fn background_invoke(
-        request: InvokeRequest,
-        invoke_time: Option<MillisSinceEpoch>,
-    ) -> Self {
+    pub fn background_invoke(request: InvokeRequest, invoke_time: Option<MillisSinceEpoch>) -> Self {
         Entry::OneWayCall(OneWayCallEntry {
             request,
             invoke_time: invoke_time.map(|t| t.as_u64()).unwrap_or_default(),
@@ -104,6 +102,20 @@ impl Entry {
     pub fn awakeable(result: Option<EntryResult>) -> Self {
         Entry::Awakeable(AwakeableEntry { result })
     }
+
+    pub fn cancel_invocation(target: CancelInvocationTarget) -> Entry {
+        Entry::CancelInvocation(CancelInvocationEntry { target })
+    }
+
+    pub fn get_call_invocation_id(
+        call_entry_index: EntryIndex,
+        result: Option<GetCallInvocationIdResult>,
+    ) -> Entry {
+        Entry::GetCallInvocationId(GetCallInvocationIdEntry {
+            call_entry_index,
+            result,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,10 +126,7 @@ pub struct Completion {
 
 impl Completion {
     pub fn new(entry_index: EntryIndex, result: CompletionResult) -> Self {
-        Self {
-            entry_index,
-            result,
-        }
+        Self { entry_index, result }
     }
 }
 
@@ -170,6 +179,8 @@ pub enum EntryType {
     Awakeable,
     CompleteAwakeable,
     Run,
+    CancelInvocation,
+    GetCallInvocationId,
     Custom,
 }
 
@@ -213,6 +224,7 @@ mod private {
     impl Sealed for SleepEntry {}
     impl Sealed for InvokeEntry {}
     impl Sealed for AwakeableEntry {}
+    impl Sealed for GetCallInvocationIdEntry {}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -331,26 +343,12 @@ pub struct InvokeRequest {
     pub service_name: ByteString,
     pub handler_name: ByteString,
     pub parameter: Bytes,
+    pub headers: Vec<Header>,
     /// Empty if service call.
     /// The reason this is not Option<ByteString> is that it cannot be distinguished purely from the message
     /// whether the key is none or empty.
     pub key: ByteString,
-}
-
-impl InvokeRequest {
-    pub fn new(
-        service_name: impl Into<ByteString>,
-        method_name: impl Into<ByteString>,
-        parameter: impl Into<Bytes>,
-        key: impl Into<ByteString>,
-    ) -> Self {
-        InvokeRequest {
-            service_name: service_name.into(),
-            handler_name: method_name.into(),
-            parameter: parameter.into(),
-            key: key.into(),
-        }
-    }
+    pub idempotency_key: Option<ByteString>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -391,4 +389,33 @@ pub struct CompleteAwakeableEntry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunEntry {
     pub result: EntryResult,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CancelInvocationTarget {
+    InvocationId(ByteString),
+    CallEntryIndex(EntryIndex),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelInvocationEntry {
+    pub target: CancelInvocationTarget,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GetCallInvocationIdResult {
+    InvocationId(String),
+    Failure(InvocationErrorCode, ByteString),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GetCallInvocationIdEntry {
+    pub call_entry_index: EntryIndex,
+    pub result: Option<GetCallInvocationIdResult>,
+}
+
+impl CompletableEntry for GetCallInvocationIdEntry {
+    fn is_completed(&self) -> bool {
+        self.result.is_some()
+    }
 }

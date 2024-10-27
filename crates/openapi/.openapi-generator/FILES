@@ -6,9 +6,9 @@ docs/CreateSubscriptionRequest.md
 docs/DeletionMode.md
 docs/DeploymentApi.md
 docs/DeploymentResponse.md
+docs/DeploymentResponseAnyOf.md
+docs/DeploymentResponseAnyOf1.md
 docs/DetailedDeploymentResponse.md
-docs/DetailedDeploymentResponseAnyOf.md
-docs/DetailedDeploymentResponseAnyOf1.md
 docs/ErrorDescriptionResponse.md
 docs/HandlerMetadata.md
 docs/HandlerMetadataType.md
@@ -50,9 +50,9 @@ src/lib.rs
 src/models/create_subscription_request.rs
 src/models/deletion_mode.rs
 src/models/deployment_response.rs
+src/models/deployment_response_any_of.rs
+src/models/deployment_response_any_of_1.rs
 src/models/detailed_deployment_response.rs
-src/models/detailed_deployment_response_any_of.rs
-src/models/detailed_deployment_response_any_of_1.rs
 src/models/error_description_response.rs
 src/models/handler_metadata.rs
 src/models/handler_metadata_type.rs

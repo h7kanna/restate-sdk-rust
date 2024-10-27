@@ -16,13 +16,14 @@ use prost::Message;
 use restate_sdk_types::journal::raw::PlainRawEntry;
 use restate_sdk_types::journal::CompletionResult;
 use restate_sdk_types::journal::{Completion, EntryIndex};
+use restate_sdk_types::service_protocol;
+use std::time::Duration;
 
 mod encoding;
 mod header;
 
 pub use encoding::{Decoder, Encoder, EncodingError};
 pub use header::{MessageHeader, MessageKind, MessageType};
-use restate_sdk_types::service_protocol;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProtocolMessage {
@@ -39,6 +40,7 @@ pub enum ProtocolMessage {
 }
 
 impl ProtocolMessage {
+    #[allow(clippy::too_many_arguments)]
     pub fn new_start_message(
         id: Bytes,
         debug_id: String,
@@ -46,6 +48,8 @@ impl ProtocolMessage {
         known_entries: u32,
         partial_state: bool,
         state_map_entries: impl IntoIterator<Item = (Bytes, Bytes)>,
+        retry_count_since_last_stored_entry: u32,
+        duration_since_last_stored_entry: Duration,
     ) -> Self {
         Self::Start(service_protocol::StartMessage {
             id,
@@ -59,6 +63,8 @@ impl ProtocolMessage {
             key: key
                 .and_then(|b| String::from_utf8(b.to_vec()).ok())
                 .unwrap_or_default(),
+            retry_count_since_last_stored_entry,
+            duration_since_last_stored_entry: duration_since_last_stored_entry.as_millis() as u64,
         })
     }
 
@@ -82,14 +88,12 @@ impl ProtocolMessage {
 impl From<Completion> for ProtocolMessage {
     fn from(completion: Completion) -> Self {
         match completion.result {
-            CompletionResult::Empty => {
-                ProtocolMessage::Completion(service_protocol::CompletionMessage {
-                    entry_index: completion.entry_index,
-                    result: Some(service_protocol::completion_message::Result::Empty(
-                        service_protocol::Empty {},
-                    )),
-                })
-            }
+            CompletionResult::Empty => ProtocolMessage::Completion(service_protocol::CompletionMessage {
+                entry_index: completion.entry_index,
+                result: Some(service_protocol::completion_message::Result::Empty(
+                    service_protocol::Empty {},
+                )),
+            }),
             CompletionResult::Success(b) => {
                 ProtocolMessage::Completion(service_protocol::CompletionMessage {
                     entry_index: completion.entry_index,

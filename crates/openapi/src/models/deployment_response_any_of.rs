@@ -12,12 +12,7 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct DeploymentResponse {
-    #[serde(rename = "id")]
-    pub id: String,
-    /// List of services exposed by this deployment.
-    #[serde(rename = "services")]
-    pub services: Vec<models::ServiceNameRevPair>,
+pub struct DeploymentResponseAnyOf {
     #[serde(rename = "uri")]
     pub uri: String,
     #[serde(rename = "protocol_type")]
@@ -32,17 +27,11 @@ pub struct DeploymentResponse {
     pub min_protocol_version: i32,
     #[serde(rename = "max_protocol_version")]
     pub max_protocol_version: i32,
-    #[serde(rename = "arn")]
-    pub arn: String,
-    #[serde(rename = "assume_role_arn", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub assume_role_arn: Option<Option<String>>,
 }
 
-impl DeploymentResponse {
-    pub fn new(id: String, services: Vec<models::ServiceNameRevPair>, uri: String, protocol_type: models::ProtocolType, http_version: String, created_at: String, min_protocol_version: i32, max_protocol_version: i32, arn: String) -> DeploymentResponse {
-        DeploymentResponse {
-            id,
-            services,
+impl DeploymentResponseAnyOf {
+    pub fn new(uri: String, protocol_type: models::ProtocolType, http_version: String, created_at: String, min_protocol_version: i32, max_protocol_version: i32) -> DeploymentResponseAnyOf {
+        DeploymentResponseAnyOf {
             uri,
             protocol_type,
             http_version,
@@ -50,8 +39,6 @@ impl DeploymentResponse {
             created_at,
             min_protocol_version,
             max_protocol_version,
-            arn,
-            assume_role_arn: None,
         }
     }
 }

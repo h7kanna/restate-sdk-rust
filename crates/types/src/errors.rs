@@ -17,25 +17,17 @@ use std::fmt;
 /// if you don't know the actual error type or if it is not important.
 pub type GenericError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
-#[derive(Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Copy, Clone, PartialEq, Eq, derive_more::Debug, derive_more::Display, serde::Serialize, serde::Deserialize,
+)]
+#[debug("{}", _0)]
+#[display("{}", _0)]
 #[serde(transparent)]
 pub struct InvocationErrorCode(u16);
 
 impl InvocationErrorCode {
     pub const fn new(code: u16) -> Self {
         InvocationErrorCode(code)
-    }
-}
-
-impl fmt::Debug for InvocationErrorCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl fmt::Display for InvocationErrorCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
     }
 }
 
@@ -90,8 +82,7 @@ pub struct InvocationError {
     description: Option<Cow<'static, str>>,
 }
 
-pub const UNKNOWN_INVOCATION_ERROR: InvocationError =
-    InvocationError::new_static(codes::UNKNOWN, "unknown");
+pub const UNKNOWN_INVOCATION_ERROR: InvocationError = InvocationError::new_static(codes::UNKNOWN, "unknown");
 
 impl Default for InvocationError {
     fn default() -> Self {
@@ -139,15 +130,15 @@ impl InvocationError {
     pub fn service_not_found(service: impl fmt::Display) -> Self {
         Self {
             code: codes::NOT_FOUND,
-            message: Cow::Owned(format!("Service '{}' not found. Check whether the deployment containing the service is registered.", service)),
+            message: Cow::Owned(format!(
+                "Service '{}' not found. Check whether the deployment containing the service is registered.",
+                service
+            )),
             description: None,
         }
     }
 
-    pub fn service_handler_not_found(
-        service: impl fmt::Display,
-        handler: impl fmt::Display,
-    ) -> Self {
+    pub fn service_handler_not_found(service: impl fmt::Display, handler: impl fmt::Display) -> Self {
         Self {
             code: codes::NOT_FOUND,
             message: Cow::Owned(format!("Service handler '{}/{}' not found. Check whether you've registered the correct version of your service.", service, handler)),
@@ -196,8 +187,7 @@ impl From<anyhow::Error> for InvocationError {
 
 // -- Some known errors
 
-pub const KILLED_INVOCATION_ERROR: InvocationError =
-    InvocationError::new_static(codes::KILLED, "killed");
+pub const KILLED_INVOCATION_ERROR: InvocationError = InvocationError::new_static(codes::KILLED, "killed");
 
 // TODO: Once we want to distinguish server side cancellations from user code returning the
 //  UserErrorCode::Cancelled, we need to add a new RestateErrorCode.

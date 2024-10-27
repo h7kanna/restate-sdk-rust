@@ -6,6 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **uri** | **String** |  | 
 **protocol_type** | [**models::ProtocolType**](ProtocolType.md) |  | 
+**http_version** | **String** |  | 
 **additional_headers** | Option<**std::collections::HashMap<String, String>**> |  | [optional]
 **created_at** | **String** |  | 
 **min_protocol_version** | **i32** |  | 

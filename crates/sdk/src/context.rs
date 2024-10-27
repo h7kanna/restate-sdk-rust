@@ -176,6 +176,7 @@ pub trait ContextBase: ContextInstance {
         handler_name: String,
         parameter: Input,
         key: Option<String>,
+        idempotency_key: Option<String>,
     ) -> impl Future<Output = Result<Output, anyhow::Error>> + JournalIndex + '_
     where
         for<'a> Input: Serialize + Deserialize<'a>,
@@ -191,7 +192,9 @@ pub trait ContextBase: ContextInstance {
                     service_name: service_name.into(),
                     handler_name: handler_name.into(),
                     parameter: parameter.into(),
+                    headers: vec![],
                     key: Default::default(),
+                    idempotency_key: idempotency_key.map(|key| key.into()),
                 },
                 result: None,
             },

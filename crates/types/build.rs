@@ -25,32 +25,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut parsed_content: serde_json::Value = serde_json::from_reader(
         std::fs::File::open("./service-protocol/endpoint_manifest_schema.json").unwrap(),
     )
-        .unwrap();
+    .unwrap();
 
-    Pointer::parse(
-        "#/properties/services/items/properties/handlers/items/properties/input/default",
-    )
+    Pointer::parse("#/properties/services/items/properties/handlers/items/properties/input/default")
         .unwrap()
         .delete(&mut parsed_content);
-    Pointer::parse(
-        "#/properties/services/items/properties/handlers/items/properties/input/examples",
-    )
+    Pointer::parse("#/properties/services/items/properties/handlers/items/properties/input/examples")
         .unwrap()
         .delete(&mut parsed_content);
-    Pointer::parse(
-        "#/properties/services/items/properties/handlers/items/properties/output/default",
-    )
+    Pointer::parse("#/properties/services/items/properties/handlers/items/properties/output/default")
         .unwrap()
         .delete(&mut parsed_content);
-    Pointer::parse(
-        "#/properties/services/items/properties/handlers/items/properties/output/examples",
-    )
+    Pointer::parse("#/properties/services/items/properties/handlers/items/properties/output/examples")
         .unwrap()
         .delete(&mut parsed_content);
 
     // Instantiate type space and run code-generation
-    let mut type_space =
-        TypeSpace::new(TypeSpaceSettings::default().with_derive("Clone".to_owned()));
+    let mut type_space = TypeSpace::new(TypeSpaceSettings::default().with_derive("Clone".to_owned()));
     type_space
         .add_root_schema(serde_json::from_value(parsed_content).unwrap())
         .unwrap();

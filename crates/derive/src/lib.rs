@@ -481,6 +481,7 @@ fn create_service_client_fn(service: proc_macro2::Ident, handler: &ImplItemFn) -
                 #method_literal.to_string(),
                 #parameter,
                 None,
+                None,
             )
     );
 

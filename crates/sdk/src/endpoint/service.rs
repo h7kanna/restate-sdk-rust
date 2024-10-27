@@ -114,6 +114,7 @@ async fn service(
                             parameter: Bytes::from("hello again"),
                             headers: vec![],
                             key: "".to_string(),
+                            idempotency_key: None,
                             name: "".to_string(),
                             result: None,
                         }

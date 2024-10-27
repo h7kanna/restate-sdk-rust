@@ -12,6 +12,7 @@ default = []
 anyhow = { workspace = true }
 bytes = { workspace = true }
 bytestring = { workspace = true }
+derive_more = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 regress = "0.9.1"

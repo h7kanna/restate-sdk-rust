@@ -15,7 +15,17 @@ use std::time::{Duration, SystemTime};
 
 /// Milliseconds since the unix epoch
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    derive_more::Into,
 )]
 #[serde(transparent)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
@@ -31,6 +41,13 @@ impl MillisSinceEpoch {
 
     pub fn now() -> Self {
         SystemTime::now().into()
+    }
+
+    pub fn after(duration: Duration) -> MillisSinceEpoch {
+        SystemTime::now()
+            .checked_add(duration)
+            .map(|time| time.into())
+            .unwrap_or(Self::MAX)
     }
 
     pub fn as_u64(&self) -> u64 {
@@ -99,9 +116,7 @@ impl From<MillisSinceEpoch> for SystemTime {
 /// It's vulnerable to clock skews and sync issues, so use with care. That said, it's fairly
 /// accurate when used on the same node. This roughly maps to std::time::Instant except that the
 /// value is portable across nodes.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct NanosSinceEpoch(u64);

@@ -10,11 +10,11 @@
 
 //! This module contains all the core types representing a service invocation.
 
-use std::fmt;
-use bytestring::ByteString;
-use prost::bytes::Bytes;
 use crate::errors::InvocationError;
 use crate::identifiers::ServiceId;
+use bytestring::ByteString;
+use prost::bytes::Bytes;
+use std::fmt;
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
@@ -40,9 +40,7 @@ impl fmt::Display for ServiceType {
     }
 }
 
-#[derive(
-    Eq, Hash, PartialEq, Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize,
-)]
+#[derive(Eq, Hash, PartialEq, Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum VirtualObjectHandlerType {
     #[default]
@@ -56,9 +54,7 @@ impl fmt::Display for VirtualObjectHandlerType {
     }
 }
 
-#[derive(
-    Eq, Hash, PartialEq, Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize,
-)]
+#[derive(Eq, Hash, PartialEq, Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum WorkflowHandlerType {
     #[default]
@@ -203,9 +199,7 @@ impl InvocationTarget {
             InvocationTarget::VirtualObject { name, key, .. } => {
                 Some(ServiceId::new(name.clone(), key.clone()))
             }
-            InvocationTarget::Workflow { name, key, .. } => {
-                Some(ServiceId::new(name.clone(), key.clone()))
-            }
+            InvocationTarget::Workflow { name, key, .. } => Some(ServiceId::new(name.clone(), key.clone())),
         }
     }
 
@@ -223,9 +217,7 @@ impl InvocationTarget {
             InvocationTarget::VirtualObject { handler_ty, .. } => {
                 InvocationTargetType::VirtualObject(*handler_ty)
             }
-            InvocationTarget::Workflow { handler_ty, .. } => {
-                InvocationTargetType::Workflow(*handler_ty)
-            }
+            InvocationTarget::Workflow { handler_ty, .. } => InvocationTargetType::Workflow(*handler_ty),
         }
     }
 }

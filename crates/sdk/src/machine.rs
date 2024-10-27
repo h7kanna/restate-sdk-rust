@@ -11,6 +11,10 @@ use futures::channel::oneshot;
 use parking_lot::{Mutex, MutexGuard};
 use prost::Message;
 use restate_sdk_core::ServiceHandler;
+use restate_sdk_types::journal::{CancelInvocationTarget, GetCallInvocationIdResult};
+use restate_sdk_types::service_protocol::{
+    cancel_invocation_entry_message, get_call_invocation_id_entry_message,
+};
 use restate_sdk_types::{
     endpoint_manifest::ProtocolMode,
     journal::{
@@ -150,6 +154,7 @@ impl StateMachine {
                             related_entry_index: None,
                             related_entry_name: None,
                             related_entry_type: None,
+                            next_retry_delay: None,
                         });
                         let mut state_machine = state_machine.lock();
                         state_machine.send(error);
@@ -424,6 +429,11 @@ impl StateMachine {
                                     parameter: call.request.parameter.clone(),
                                     headers: vec![],
                                     key: call.request.key.to_string(),
+                                    idempotency_key: call
+                                        .request
+                                        .idempotency_key
+                                        .as_ref()
+                                        .map(|key| key.to_string()),
                                     name: entry_name.unwrap_or_default(),
                                     result: None,
                                 }
@@ -446,6 +456,11 @@ impl StateMachine {
                                     invoke_time: one_way.invoke_time,
                                     headers: vec![],
                                     key: one_way.request.key.to_string(),
+                                    idempotency_key: one_way
+                                        .request
+                                        .idempotency_key
+                                        .as_ref()
+                                        .map(|key| key.to_string()),
                                     name: entry_name.unwrap_or_default(),
                                 }
                                 .encode_to_vec()
@@ -519,6 +534,54 @@ impl StateMachine {
                                 service_protocol::RunEntryMessage {
                                     name: entry_name.unwrap_or_default(),
                                     result: Some(result),
+                                }
+                                .encode_to_vec()
+                                .into(),
+                            )
+                            .into(),
+                        );
+                    }
+                    Entry::CancelInvocation(cancel) => {
+                        let target = match &cancel.target {
+                            CancelInvocationTarget::InvocationId(id) => {
+                                cancel_invocation_entry_message::Target::InvocationId(id.to_string())
+                            }
+                            CancelInvocationTarget::CallEntryIndex(index) => {
+                                cancel_invocation_entry_message::Target::CallEntryIndex(*index)
+                            }
+                        };
+                        self.send(
+                            PlainRawEntry::new(
+                                PlainEntryHeader::CancelInvocation,
+                                service_protocol::CancelInvocationEntryMessage {
+                                    name: entry_name.unwrap_or_default(),
+                                    target: Some(target),
+                                }
+                                .encode_to_vec()
+                                .into(),
+                            )
+                            .into(),
+                        );
+                    }
+                    Entry::GetCallInvocationId(get_id) => {
+                        let result = get_id.result.as_ref().map(|get_id| match get_id {
+                            GetCallInvocationIdResult::InvocationId(id) => {
+                                get_call_invocation_id_entry_message::Result::Value(id.to_string())
+                            }
+                            GetCallInvocationIdResult::Failure(code, message) => {
+                                get_call_invocation_id_entry_message::Result::Failure(Failure {
+                                    code: (*code).into(),
+                                    message: message.to_string(),
+                                })
+                            }
+                        });
+                        self.send(
+                            PlainRawEntry::new(
+                                PlainEntryHeader::GetCallInvocationId { is_completed: false },
+                                service_protocol::GetCallInvocationIdEntryMessage {
+                                    call_entry_index: get_id.call_entry_index,
+                                    name: entry_name.unwrap_or_default(),
+                                    result: result,
                                 }
                                 .encode_to_vec()
                                 .into(),

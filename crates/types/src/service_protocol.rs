@@ -13,7 +13,7 @@ use std::ops::RangeInclusive;
 
 // Range of supported service protocol versions by this server
 pub const MIN_SERVICE_PROTOCOL_VERSION: ServiceProtocolVersion = ServiceProtocolVersion::V1;
-pub const MAX_SERVICE_PROTOCOL_VERSION: ServiceProtocolVersion = ServiceProtocolVersion::V1;
+pub const MAX_SERVICE_PROTOCOL_VERSION: ServiceProtocolVersion = ServiceProtocolVersion::V3;
 
 pub const MAX_SERVICE_PROTOCOL_VERSION_VALUE: i32 = i32::MAX;
 
@@ -33,14 +33,13 @@ impl ServiceProtocolVersion {
         MIN_SERVICE_PROTOCOL_VERSION <= *self && *self <= MAX_SERVICE_PROTOCOL_VERSION
     }
 
-    pub fn choose_max_supported_version(
-        versions: &RangeInclusive<i32>,
-    ) -> Option<ServiceProtocolVersion> {
+    pub fn choose_max_supported_version(versions: &RangeInclusive<i32>) -> Option<ServiceProtocolVersion> {
         if ServiceProtocolVersion::is_compatible(*versions.start(), *versions.end()) {
-            ServiceProtocolVersion::from_repr(std::cmp::min(
+            ServiceProtocolVersion::try_from(std::cmp::min(
                 *versions.end(),
                 i32::from(MAX_SERVICE_PROTOCOL_VERSION),
             ))
+            .ok()
         } else {
             None
         }
@@ -57,17 +56,32 @@ impl From<ErrorMessage> for InvocationError {
     }
 }
 
+impl From<Header> for crate::invocation::Header {
+    fn from(value: Header) -> Self {
+        Self::new(value.key, value.value)
+    }
+}
+
+impl From<crate::invocation::Header> for Header {
+    fn from(value: crate::invocation::Header) -> Self {
+        Self {
+            key: value.name.into(),
+            value: value.value.into(),
+        }
+    }
+}
+
 /// This module implements conversions back and forth from proto messages to [`journal::Entry`] model.
 /// These are used by the [`codec::ProtobufRawEntryCodec`].
 mod pb_into {
     use super::*;
 
     use crate::journal::{
-        AwakeableEntry, ClearStateEntry, CompleteAwakeableEntry, CompletePromiseEntry,
-        CompleteResult, CompletionResult, Entry, EntryResult, GetPromiseEntry, GetStateEntry,
-        GetStateKeysEntry, GetStateKeysResult, InputEntry, InvokeEntry, InvokeRequest,
-        OneWayCallEntry, OutputEntry, PeekPromiseEntry, RunEntry, SetStateEntry, SleepEntry,
-        SleepResult,
+        AwakeableEntry, CancelInvocationEntry, CancelInvocationTarget, ClearStateEntry,
+        CompleteAwakeableEntry, CompletePromiseEntry, CompleteResult, CompletionResult, Entry, EntryResult,
+        GetCallInvocationIdEntry, GetCallInvocationIdResult, GetPromiseEntry, GetStateEntry,
+        GetStateKeysEntry, GetStateKeysResult, InputEntry, InvokeEntry, InvokeRequest, OneWayCallEntry,
+        OutputEntry, PeekPromiseEntry, RunEntry, SetStateEntry, SleepEntry, SleepResult,
     };
 
     impl TryFrom<InputEntryMessage> for Entry {
@@ -135,9 +149,7 @@ mod pb_into {
         fn try_from(msg: GetStateKeysEntryMessage) -> Result<Self, Self::Error> {
             Ok(Self::GetStateKeys(GetStateKeysEntry {
                 value: msg.result.map(|v| match v {
-                    get_state_keys_entry_message::Result::Value(b) => {
-                        GetStateKeysResult::Result(b.keys)
-                    }
+                    get_state_keys_entry_message::Result::Value(b) => GetStateKeysResult::Result(b.keys),
                     get_state_keys_entry_message::Result::Failure(failure) => {
                         GetStateKeysResult::Failure(failure.code.into(), failure.message.into())
                     }
@@ -194,9 +206,7 @@ mod pb_into {
             Ok(Self::CompletePromise(CompletePromiseEntry {
                 key: msg.key.into(),
                 completion: match msg.completion.ok_or("completion")? {
-                    complete_promise_entry_message::Completion::CompletionValue(b) => {
-                        EntryResult::Success(b)
-                    }
+                    complete_promise_entry_message::Completion::CompletionValue(b) => EntryResult::Success(b),
                     complete_promise_entry_message::Completion::CompletionFailure(failure) => {
                         EntryResult::Failure(failure.code.into(), failure.message.into())
                     }
@@ -236,7 +246,9 @@ mod pb_into {
                     service_name: msg.service_name.into(),
                     handler_name: msg.handler_name.into(),
                     parameter: msg.parameter,
+                    headers: msg.headers.into_iter().map(Into::into).collect(),
                     key: msg.key.into(),
+                    idempotency_key: msg.idempotency_key.map(|k| k.into()),
                 },
                 result: msg.result.map(|v| match v {
                     call_entry_message::Result::Value(r) => EntryResult::Success(r),
@@ -257,7 +269,9 @@ mod pb_into {
                     service_name: msg.service_name.into(),
                     handler_name: msg.handler_name.into(),
                     parameter: msg.parameter,
+                    headers: msg.headers.into_iter().map(Into::into).collect(),
                     key: msg.key.into(),
+                    idempotency_key: msg.idempotency_key.map(|k| k.into()),
                 },
                 invoke_time: msg.invoke_time,
             }))
@@ -287,10 +301,9 @@ mod pb_into {
                 id: msg.id.into(),
                 result: match msg.result.ok_or("result")? {
                     complete_awakeable_entry_message::Result::Value(r) => EntryResult::Success(r),
-                    complete_awakeable_entry_message::Result::Failure(Failure {
-                        code,
-                        message,
-                    }) => EntryResult::Failure(code.into(), message.into()),
+                    complete_awakeable_entry_message::Result::Failure(Failure { code, message }) => {
+                        EntryResult::Failure(code.into(), message.into())
+                    }
                 },
             }))
         }
@@ -307,6 +320,41 @@ mod pb_into {
                         EntryResult::Failure(code.into(), message.into())
                     }
                 },
+            }))
+        }
+    }
+
+    impl TryFrom<CancelInvocationEntryMessage> for Entry {
+        type Error = &'static str;
+
+        fn try_from(msg: CancelInvocationEntryMessage) -> Result<Self, Self::Error> {
+            Ok(Self::CancelInvocation(CancelInvocationEntry {
+                target: match msg.target.ok_or("target")? {
+                    cancel_invocation_entry_message::Target::InvocationId(s) => {
+                        CancelInvocationTarget::InvocationId(s.into())
+                    }
+                    cancel_invocation_entry_message::Target::CallEntryIndex(i) => {
+                        CancelInvocationTarget::CallEntryIndex(i)
+                    }
+                },
+            }))
+        }
+    }
+
+    impl TryFrom<GetCallInvocationIdEntryMessage> for Entry {
+        type Error = &'static str;
+
+        fn try_from(msg: GetCallInvocationIdEntryMessage) -> Result<Self, Self::Error> {
+            Ok(Self::GetCallInvocationId(GetCallInvocationIdEntry {
+                call_entry_index: msg.call_entry_index,
+                result: msg.result.map(|v| match v {
+                    get_call_invocation_id_entry_message::Result::Value(r) => {
+                        GetCallInvocationIdResult::InvocationId(r)
+                    }
+                    get_call_invocation_id_entry_message::Result::Failure(Failure { code, message }) => {
+                        GetCallInvocationIdResult::Failure(code.into(), message.into())
+                    }
+                }),
             }))
         }
     }

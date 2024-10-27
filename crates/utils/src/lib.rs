@@ -261,6 +261,8 @@ impl JournalClient {
                     EntryType::Awakeable => MessageType::AwakeableEntry,
                     EntryType::CompleteAwakeable => MessageType::CompleteAwakeableEntry,
                     EntryType::Run => MessageType::SideEffectEntry,
+                    EntryType::CancelInvocation => MessageType::CancelInvocationEntry,
+                    EntryType::GetCallInvocationId => MessageType::GetCallInvocationIdEntry,
                     EntryType::Custom => MessageType::CustomEntry(0),
                 };
                 (message.0, message_type, ProtocolMessage::UnparsedEntry(entry))
@@ -273,6 +275,8 @@ impl JournalClient {
             journal.len() as u32,
             false,
             vec![],
+            0,
+            Duration::ZERO,
         );
         journal.push_front((None, MessageType::Start, start_message));
         journal
@@ -338,16 +342,19 @@ mod tests {
     #[traced_test]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_query() {
-        let invocation_id = "inv_167Vl6XWU8sU3d5tatRX0V8kkc9HcVWmlj";
+        let invocation_id = "inv_13WTOp5Lirno4meUO0SEIv3iJPn3uGUca5";
         let journal_client = JournalClient::new("http://localhost:9070".to_string())
             .await
             .unwrap();
         let cancellation_token = Arc::new(AtomicBool::new(false));
         let journal = journal_client
-            .watch_journal(invocation_id.to_owned(), JournalWatchOptions {
-                interval_millis: 500,
-                cancellation_token: cancellation_token.clone(),
-            })
+            .watch_journal(
+                invocation_id.to_owned(),
+                JournalWatchOptions {
+                    interval_millis: 500,
+                    cancellation_token: cancellation_token.clone(),
+                },
+            )
             .await;
         pin_mut!(journal);
         while let Some(message) = journal.next().await {
@@ -380,6 +387,8 @@ mod tests {
                             Entry::Awakeable(_) => {}
                             Entry::CompleteAwakeable(_) => {}
                             Entry::Run(_) => {}
+                            Entry::CancelInvocation(_) => {}
+                            Entry::GetCallInvocationId(_) => {}
                             Entry::Custom(_) => {}
                         }
                     }

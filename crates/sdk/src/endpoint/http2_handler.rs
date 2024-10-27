@@ -56,7 +56,14 @@ mod tests {
 
     async fn service_fn(ctx: Context, input: ExecInput) -> Result<ExecOutput, anyhow::Error> {
         let output = ctx
-            .invoke(greet_fn, "Greeter".to_string(), "greet".to_string(), input, None)
+            .invoke(
+                greet_fn,
+                "Greeter".to_string(),
+                "greet".to_string(),
+                input,
+                None,
+                None,
+            )
             .await
             .unwrap();
         Ok(ExecOutput {
@@ -82,6 +89,8 @@ mod tests {
                     state_map: vec![],
                     partial_state: false,
                     key: "".to_string(),
+                    retry_count_since_last_stored_entry: 0,
+                    duration_since_last_stored_entry: 0,
                 }),
             ),
             (
@@ -114,6 +123,7 @@ mod tests {
                         headers: vec![],
                         name: "".to_string(),
                         key: "".to_string(),
+                        idempotency_key: None,
                         result: Some(call_entry_message::Result::Value("{\"status\":\"test\"}".into())),
                     }
                     .encode_to_vec()

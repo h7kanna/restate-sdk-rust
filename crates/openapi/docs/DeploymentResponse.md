@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **services** | [**Vec<models::ServiceNameRevPair>**](ServiceNameRevPair.md) | List of services exposed by this deployment. | 
 **uri** | **String** |  | 
 **protocol_type** | [**models::ProtocolType**](ProtocolType.md) |  | 
+**http_version** | **String** |  | 
 **additional_headers** | Option<**std::collections::HashMap<String, String>**> |  | [optional]
 **created_at** | **String** |  | 
 **min_protocol_version** | **i32** |  | 

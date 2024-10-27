@@ -3,6 +3,7 @@ use bytes::Bytes;
 use dashmap::DashMap;
 use futures_util::task::waker;
 use prost::Message;
+use restate_sdk_types::journal::{CancelInvocationEntry, GetCallInvocationIdEntry};
 use restate_sdk_types::{
     journal::{
         CompleteResult, CompletionResult, Entry, EntryResult, GetStateKeysResult, InputEntry, RunEntry,
@@ -70,10 +71,13 @@ impl Journal {
         if self.invocation.number_entries_to_replay == 1 {
             self.transition_state(NewExecutionState::PROCESSING);
         }
-        self.pending_entries.insert(0, JournalEntry {
-            entry: Entry::Input(input),
-            waker: None,
-        });
+        self.pending_entries.insert(
+            0,
+            JournalEntry {
+                entry: Entry::Input(input),
+                waker: None,
+            },
+        );
     }
 
     fn transition_state(&mut self, new_state: NewExecutionState) {
@@ -250,6 +254,8 @@ impl Journal {
                 }
                 EntryResult::Failure(_, _) => {}
             },
+            Entry::CancelInvocation(_) => {}
+            Entry::GetCallInvocationId(_) => {}
             Entry::Custom(_) => {
                 let JournalEntry { entry, waker } = entry;
                 self.append_entry(entry, waker.unwrap());
@@ -301,6 +307,8 @@ impl Journal {
             }
             Entry::CompleteAwakeable(_) => {}
             Entry::Run(_) => {}
+            Entry::CancelInvocation(_) => {}
+            Entry::GetCallInvocationId(_) => {}
             Entry::Custom(_) => {
                 self.append_entry(entry, waker.unwrap());
             }
@@ -422,6 +430,12 @@ impl Journal {
                         return Some(value.clone());
                     }
                     EntryResult::Failure(_, _) => {}
+                },
+                Entry::CancelInvocation(cancel) => match cancel {
+                    &_ => {}
+                },
+                Entry::GetCallInvocationId(get_call_invocation_id) => match get_call_invocation_id {
+                    &_ => {}
                 },
                 Entry::Custom(_) => return Some(Bytes::new()),
             }
@@ -604,11 +618,13 @@ impl Journal {
     }
 
     pub fn append_entry(&self, entry: Entry, waker: Waker) {
-        self.pending_entries
-            .insert(self.user_code_journal_index, JournalEntry {
+        self.pending_entries.insert(
+            self.user_code_journal_index,
+            JournalEntry {
                 entry,
                 waker: Some(waker),
-            });
+            },
+        );
     }
 
     pub fn is_unresolved(&self, index: u32) -> bool {

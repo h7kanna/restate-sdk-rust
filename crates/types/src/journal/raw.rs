@@ -49,9 +49,7 @@ impl<InvokeEnrichmentResult, AwakeableEnrichmentResult>
         &self.header
     }
 
-    pub fn header_mut(
-        &mut self,
-    ) -> &mut EntryHeader<InvokeEnrichmentResult, AwakeableEnrichmentResult> {
+    pub fn header_mut(&mut self) -> &mut EntryHeader<InvokeEnrichmentResult, AwakeableEnrichmentResult> {
         &mut self.header
     }
 
@@ -75,8 +73,7 @@ impl<InvokeEnrichmentResult, AwakeableEnrichmentResult>
         F: FnOnce(
             EntryHeader<InvokeEnrichmentResult, AwakeableEnrichmentResult>,
             &Bytes,
-        )
-            -> EntryHeader<TargetInvokeEnrichmentResult, TargetAwakeableEnrichmentResult>,
+        ) -> EntryHeader<TargetInvokeEnrichmentResult, TargetAwakeableEnrichmentResult>,
     {
         let new_header = mapper(self.header, &self.entry);
         RawEntry {
@@ -93,9 +90,7 @@ impl<InvokeEnrichmentResult, AwakeableEnrichmentResult>
         Codec::deserialize(self.ty(), self.entry.clone())
     }
 
-    pub fn deserialize_name<Codec: RawEntryCodec>(
-        &self,
-    ) -> Result<Option<String>, RawEntryCodecError> {
+    pub fn deserialize_name<Codec: RawEntryCodec>(&self) -> Result<Option<String>, RawEntryCodecError> {
         Codec::read_entry_name(self.ty(), self.entry.clone())
     }
 
@@ -143,6 +138,10 @@ pub enum EntryHeader<CallEnrichmentResult, AwakeableEnrichmentResult> {
         enrichment_result: AwakeableEnrichmentResult,
     },
     Run,
+    CancelInvocation,
+    GetCallInvocationId {
+        is_completed: bool,
+    },
     Custom {
         code: u16,
     },
@@ -170,6 +169,8 @@ impl<InvokeEnrichmentResult, AwakeableEnrichmentResult>
             EntryHeader::GetPromise { is_completed } => Some(*is_completed),
             EntryHeader::PeekPromise { is_completed } => Some(*is_completed),
             EntryHeader::CompletePromise { is_completed } => Some(*is_completed),
+            EntryHeader::CancelInvocation => None,
+            EntryHeader::GetCallInvocationId { is_completed } => Some(*is_completed),
         }
     }
 
@@ -192,6 +193,8 @@ impl<InvokeEnrichmentResult, AwakeableEnrichmentResult>
             EntryHeader::GetPromise { is_completed } => *is_completed = true,
             EntryHeader::PeekPromise { is_completed } => *is_completed = true,
             EntryHeader::CompletePromise { is_completed } => *is_completed = true,
+            EntryHeader::CancelInvocation => {}
+            EntryHeader::GetCallInvocationId { is_completed } => *is_completed = true,
         }
     }
 
@@ -214,6 +217,8 @@ impl<InvokeEnrichmentResult, AwakeableEnrichmentResult>
             EntryHeader::GetPromise { .. } => EntryType::GetPromise,
             EntryHeader::PeekPromise { .. } => EntryType::PeekPromise,
             EntryHeader::CompletePromise { .. } => EntryType::CompletePromise,
+            EntryHeader::CancelInvocation => EntryType::CancelInvocation,
+            EntryHeader::GetCallInvocationId { .. } => EntryType::GetCallInvocationId,
         }
     }
 
@@ -224,9 +229,7 @@ impl<InvokeEnrichmentResult, AwakeableEnrichmentResult>
             EntryHeader::GetState { is_completed } => EntryHeader::GetState { is_completed },
             EntryHeader::SetState {} => EntryHeader::SetState {},
             EntryHeader::ClearState {} => EntryHeader::ClearState {},
-            EntryHeader::GetStateKeys { is_completed } => {
-                EntryHeader::GetStateKeys { is_completed }
-            }
+            EntryHeader::GetStateKeys { is_completed } => EntryHeader::GetStateKeys { is_completed },
             EntryHeader::ClearAllState => EntryHeader::ClearAllState,
             EntryHeader::Sleep { is_completed } => EntryHeader::Sleep { is_completed },
             EntryHeader::Call { is_completed, .. } => EntryHeader::Call {
@@ -244,8 +247,10 @@ impl<InvokeEnrichmentResult, AwakeableEnrichmentResult>
             EntryHeader::Custom { code } => EntryHeader::Custom { code },
             EntryHeader::GetPromise { is_completed } => EntryHeader::GetPromise { is_completed },
             EntryHeader::PeekPromise { is_completed } => EntryHeader::PeekPromise { is_completed },
-            EntryHeader::CompletePromise { is_completed } => {
-                EntryHeader::CompletePromise { is_completed }
+            EntryHeader::CompletePromise { is_completed } => EntryHeader::CompletePromise { is_completed },
+            EntryHeader::CancelInvocation => EntryHeader::CancelInvocation,
+            EntryHeader::GetCallInvocationId { is_completed } => {
+                EntryHeader::GetCallInvocationId { is_completed }
             }
         }
     }
@@ -278,10 +283,7 @@ pub enum ErrorKind {
 }
 
 pub trait RawEntryCodec {
-    fn serialize_as_input_entry(
-        headers: Vec<Header>,
-        input_message: Bytes,
-    ) -> PlainRawEntry;
+    fn serialize_as_input_entry(headers: Vec<Header>, input_message: Bytes) -> PlainRawEntry;
 
     fn serialize_get_state_keys_completion(keys: Vec<Bytes>) -> CompletionResult;
 

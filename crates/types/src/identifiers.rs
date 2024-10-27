@@ -10,8 +10,8 @@
 
 //! Restate uses many identifiers to uniquely identify its services and entities.
 
-use std::fmt;
 use bytestring::ByteString;
+use std::fmt;
 
 pub type EntryIndex = u32;
 
@@ -29,9 +29,7 @@ pub trait WithPartitionKey {
 ///
 /// Services are isolated by key. This means that there cannot be two concurrent
 /// invocations for the same service instance (service name, key).
-#[derive(
-    Eq, Hash, PartialEq, PartialOrd, Ord, Clone, Debug, serde::Serialize, serde::Deserialize,
-)]
+#[derive(Eq, Hash, PartialEq, PartialOrd, Ord, Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ServiceId {
     // TODO rename this to KeyedServiceId. This type can be used only by keyed service types (virtual objects and workflows)
     /// Identifies the grpc service
@@ -61,11 +59,7 @@ impl ServiceId {
 
     /// # Important
     /// The `partition_key` must be hash of the `key` computed via [`HashPartitioner`].
-    pub const fn from_parts(
-        partition_key: PartitionKey,
-        service_name: ByteString,
-        key: ByteString,
-    ) -> Self {
+    pub const fn from_parts(partition_key: PartitionKey, service_name: ByteString, key: ByteString) -> Self {
         Self {
             service_name,
             key,
