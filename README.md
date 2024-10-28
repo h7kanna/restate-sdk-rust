@@ -218,6 +218,8 @@ restate sql "SELECT * FROM sys_journal sj WHERE sj.id = 'inv_12fRY4rsDA5q1s8FL2K
 ```shell
 
 curl -v localhost:9070/query -H 'content-type: application/json' -d "{ \"query\" : \"SELECT * FROM sys_journal sj WHERE sj.id = 'inv_1i7mrFgVA6eD1gnGo4q57KH9dzPZwZuBAl' ORDER BY index LIMIT 1000\" }" -o journal
+
+restate sql "SELECT * FROM sys_journal sj WHERE sj.id = 'inv_13WTOp5Lirno0Wq44aUPUYVUhMfeLBElTH' ORDER BY index LIMIT 1000"
 ```
 
 # Development

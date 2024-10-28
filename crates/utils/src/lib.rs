@@ -21,6 +21,8 @@ pub use restate_sdk_types::journal::{
     raw::{PlainEntryHeader, PlainRawEntry},
     EntryType,
 };
+use restate_sdk_types::service_protocol::ServiceProtocolVersion;
+use restate_service_protocol::message::Encoder;
 pub use restate_service_protocol::message::{MessageType, ProtocolMessage};
 use serde::Serialize;
 use std::{
@@ -100,7 +102,8 @@ struct JournalRowResult {
     raw: Option<Vec<u8>>,
 }
 
-pub type HistoryMessage = (Option<String>, MessageType, ProtocolMessage);
+//pub type HistoryMessage = (Option<String>, MessageType, ProtocolMessage);
+pub type HistoryMessage = (Option<String>, MessageType, Bytes);
 
 pub type History = VecDeque<HistoryMessage>;
 
@@ -196,13 +199,14 @@ impl JournalClient {
         Ok(results.into_iter())
     }
 
-    pub async fn query_journal(&self, invocation_id: String) -> Vec<(Option<String>, PlainRawEntry)> {
+    pub async fn journal_to_protocol(&self, invocation_id: String) -> Result<Vec<HistoryMessage>, Error> {
+        let encoder = Encoder::new(ServiceProtocolVersion::V2);
         let mut journal = self
-            .run_query_and_map_results::<JournalRowResult>(invocation_id)
-            .await
-            .unwrap()
+            .run_query_and_map_results::<JournalRowResult>(invocation_id.clone())
+            .await?
             .map(|row| {
-                let index = row.index.expect("index");
+                //let index = row.index.expect("index");
+                //let is_completed = row.completed.unwrap_or_default();
                 let is_completed = row.completed.unwrap_or_default();
                 let name = row.name;
                 let header = match row.entry_type.expect("entry_type").as_str() {
@@ -231,19 +235,7 @@ impl JournalClient {
                     "Run" => PlainEntryHeader::Run,
                     t => PlainEntryHeader::Custom { code: 0 },
                 };
-                (name, PlainRawEntry::new(header, row.raw.unwrap().into()))
-            })
-            .collect::<Vec<_>>();
-        journal.reverse();
-        journal
-    }
-
-    pub async fn journal_to_protocol(&self, invocation_id: String) -> History {
-        let journal = self.query_journal(invocation_id.clone()).await;
-        let mut journal = journal
-            .into_iter()
-            .map(|message| {
-                let entry = message.1;
+                let entry = PlainRawEntry::new(header, row.raw.unwrap().into());
                 let message_type = match entry.header().as_entry_type() {
                     EntryType::Input => MessageType::InputEntry,
                     EntryType::Output => MessageType::OutputEntry,
@@ -265,9 +257,13 @@ impl JournalClient {
                     EntryType::GetCallInvocationId => MessageType::GetCallInvocationIdEntry,
                     EntryType::Custom => MessageType::CustomEntry(0),
                 };
-                (message.0, message_type, ProtocolMessage::UnparsedEntry(entry))
+                (
+                    name,
+                    message_type,
+                    encoder.encode(ProtocolMessage::UnparsedEntry(entry)),
+                )
             })
-            .collect::<History>();
+            .collect::<Vec<_>>();
         let start_message = ProtocolMessage::new_start_message(
             Bytes::from(invocation_id.clone()),
             invocation_id,
@@ -278,17 +274,20 @@ impl JournalClient {
             0,
             Duration::ZERO,
         );
-        journal.push_front((None, MessageType::Start, start_message));
-        journal
+        let start_message = encoder.encode(start_message);
+        journal.push((None, MessageType::Start, start_message));
+        journal.reverse();
+        Ok(journal)
     }
 
+    // TODO: Cache and diffing, track the last commit point?
     pub async fn watch_journal(
         &self,
         invocation_id: String,
         options: JournalWatchOptions,
     ) -> impl Stream<Item = Result<HistoryMessage, Error>> + '_ {
         try_stream! {
-            let mut existing = self.journal_to_protocol(invocation_id.clone()).await;
+            let mut existing = self.journal_to_protocol(invocation_id.clone()).await?;
             for entry in existing.iter() {
                 yield entry.clone();
             }
@@ -304,12 +303,13 @@ impl JournalClient {
                     tokio::time::sleep(Duration::from_millis(options.interval_millis)).await;
                 }
 
-                let journal = self.journal_to_protocol(invocation_id.clone()).await;
+                let journal = self.journal_to_protocol(invocation_id.clone()).await?;
                 debug!(
                     "New entries received for Invocation: {}, History: {}",
                     invocation_id,
                     journal.len()
                 );
+                // TODO: This is crude, track incomplete entries
                 if existing.len() < journal.len() {
                     let start = journal.get(0).unwrap().clone();
                     yield start;
@@ -339,10 +339,43 @@ mod tests {
     use tracing::debug;
     use tracing_test::traced_test;
 
+    fn deserialize_entry(entry: PlainRawEntry) {
+        match entry.deserialize_entry::<ProtobufRawEntryCodec>().unwrap() {
+            Entry::Input(_) => {}
+            Entry::Output(_) => {}
+            Entry::GetState(_) => {}
+            Entry::SetState(_) => {}
+            Entry::ClearState(_) => {}
+            Entry::GetStateKeys(_) => {}
+            Entry::ClearAllState => {}
+            Entry::GetPromise(_) => {}
+            Entry::PeekPromise(_) => {}
+            Entry::CompletePromise(_) => {}
+            Entry::Sleep(_) => {}
+            Entry::Call(call) => match call.result {
+                Some(result) => match result {
+                    EntryResult::Success(bytes) => {
+                        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                        debug!("Value: {}", json);
+                    }
+                    EntryResult::Failure(_, _) => {}
+                },
+                None => {}
+            },
+            Entry::OneWayCall(_) => {}
+            Entry::Awakeable(_) => {}
+            Entry::CompleteAwakeable(_) => {}
+            Entry::Run(_) => {}
+            Entry::CancelInvocation(_) => {}
+            Entry::GetCallInvocationId(_) => {}
+            Entry::Custom(_) => {}
+        }
+    }
+
     #[traced_test]
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_query() {
-        let invocation_id = "inv_13WTOp5Lirno4meUO0SEIv3iJPn3uGUca5";
+        let invocation_id = "inv_13WTOp5Lirno4klSkrjOmxcJlllLmWT7Pz";
         let journal_client = JournalClient::new("http://localhost:9070".to_string())
             .await
             .unwrap();
@@ -356,41 +389,9 @@ mod tests {
         pin_mut!(journal);
         while let Some(message) = journal.next().await {
             match message {
-                Ok(message) => match message.2 {
-                    ProtocolMessage::UnparsedEntry(entry) => {
-                        match entry.deserialize_entry::<ProtobufRawEntryCodec>().unwrap() {
-                            Entry::Input(_) => {}
-                            Entry::Output(_) => {}
-                            Entry::GetState(_) => {}
-                            Entry::SetState(_) => {}
-                            Entry::ClearState(_) => {}
-                            Entry::GetStateKeys(_) => {}
-                            Entry::ClearAllState => {}
-                            Entry::GetPromise(_) => {}
-                            Entry::PeekPromise(_) => {}
-                            Entry::CompletePromise(_) => {}
-                            Entry::Sleep(_) => {}
-                            Entry::Call(call) => match call.result {
-                                Some(result) => match result {
-                                    EntryResult::Success(bytes) => {
-                                        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-                                        debug!("Call: {:?}, Value: {}", message.0, json);
-                                    }
-                                    EntryResult::Failure(_, _) => {}
-                                },
-                                None => {}
-                            },
-                            Entry::OneWayCall(_) => {}
-                            Entry::Awakeable(_) => {}
-                            Entry::CompleteAwakeable(_) => {}
-                            Entry::Run(_) => {}
-                            Entry::CancelInvocation(_) => {}
-                            Entry::GetCallInvocationId(_) => {}
-                            Entry::Custom(_) => {}
-                        }
-                    }
-                    _ => {}
-                },
+                Ok(message) => {
+                    debug!("Message: {:?}", message);
+                }
                 Err(err) => {}
             }
         }
